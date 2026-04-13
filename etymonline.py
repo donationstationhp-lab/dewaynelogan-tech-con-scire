@@ -1,0 +1,461 @@
+#!/usr/bin/env python3
+"""etymonline.py — search and explore word etymologies from etymonline.com
+
+Commands:
+  search <query>        Search for words matching a query
+  look <word>           Look up a specific word's etymology
+  explore <word>        Look up a word and follow related entries
+  cache                 Manage local cache  (--list | --clear)
+
+Global options:
+  --offline   Use only cached results; no network requests
+  --json      Output raw JSON instead of formatted text
+  --no-cache  Skip cache and always fetch fresh from the network
+
+Examples:
+  python etymonline.py search serendipity
+  python etymonline.py look galaxy
+  python etymonline.py explore robot --depth 2
+  python etymonline.py --offline look serendipity
+  python etymonline.py cache --list
+  python etymonline.py cache --clear
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import sys
+import textwrap
+import time
+
+try:
+    import requests
+    from bs4 import BeautifulSoup
+except ImportError:
+    sys.exit(
+        "Missing dependencies. Install with:\n"
+        "  pip install requests beautifulsoup4"
+    )
+
+# ── Constants ─────────────────────────────────────────────────────────────────
+
+BASE_URL  = "https://www.etymonline.com"
+CACHE_DIR = os.path.join(os.path.expanduser("~"), ".etymonline_cache")
+REQ_DELAY = 1.0   # polite delay between outbound requests (seconds)
+WIDTH     = 72    # terminal output width
+
+# ── Cache ─────────────────────────────────────────────────────────────────────
+
+def _cache_path(key):
+    return os.path.join(CACHE_DIR, key + ".json")
+
+
+def cache_get(key):
+    p = _cache_path(key)
+    if os.path.exists(p):
+        with open(p) as f:
+            return json.load(f)
+    return None
+
+
+def cache_set(key, data):
+    os.makedirs(CACHE_DIR, exist_ok=True)
+    with open(_cache_path(key), "w") as f:
+        json.dump(data, f, indent=2)
+
+
+def cache_list():
+    if not os.path.isdir(CACHE_DIR):
+        return []
+    return sorted(fn[:-5] for fn in os.listdir(CACHE_DIR) if fn.endswith(".json"))
+
+
+def cache_clear():
+    if not os.path.isdir(CACHE_DIR):
+        return 0
+    removed = 0
+    for fn in os.listdir(CACHE_DIR):
+        if fn.endswith(".json"):
+            os.remove(os.path.join(CACHE_DIR, fn))
+            removed += 1
+    return removed
+
+
+def _cache_key(prefix, text):
+    digest = hashlib.sha1(text.lower().encode()).hexdigest()[:12]
+    return f"{prefix}_{digest}"
+
+
+# ── HTTP ──────────────────────────────────────────────────────────────────────
+
+_last_req_time = 0.0
+
+
+def fetch(url):
+    global _last_req_time
+    wait = REQ_DELAY - (time.time() - _last_req_time)
+    if wait > 0:
+        time.sleep(wait)
+    resp = requests.get(
+        url,
+        timeout=15,
+        headers={
+            "User-Agent": (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                "(KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+            ),
+            "Accept": "text/html,application/xhtml+xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9",
+        },
+    )
+    resp.raise_for_status()
+    _last_req_time = time.time()
+    return resp.text
+
+
+# ── Parsing ───────────────────────────────────────────────────────────────────
+
+def _has_cls(tag, fragment):
+    """True if any CSS class on `tag` contains `fragment` as a substring."""
+    return any(fragment in c for c in tag.get("class", []))
+
+
+def _strip_html(text):
+    return BeautifulSoup(text, "html.parser").get_text(" ", strip=True)
+
+
+def _parse_next_data(html):
+    """
+    Primary parse path: extract entries from the Next.js __NEXT_DATA__ JSON
+    embed that React SSR pages include.  Returns a list of entry dicts or
+    None if the embed is absent / unusable.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    script = soup.find("script", {"id": "__NEXT_DATA__"})
+    if not script or not script.string:
+        return None
+
+    try:
+        data = json.loads(script.string)
+    except json.JSONDecodeError:
+        return None
+
+    props = data.get("props", {}).get("pageProps", {})
+
+    # The JSON structure differs between search results and individual word pages
+    raw = (
+        props.get("entries")
+        or props.get("words")
+        or props.get("searchResults")
+        or props.get("results")
+        or []
+    )
+    if not raw:
+        return None
+
+    entries = []
+    for item in raw:
+        if not isinstance(item, dict):
+            continue
+        word = item.get("name") or item.get("word") or ""
+        body = (
+            item.get("meaning")
+            or item.get("definition")
+            or item.get("body")
+            or ""
+        )
+        entries.append({"word": word, "etymology": _strip_html(body)})
+
+    return entries if entries else None
+
+
+def _parse_html(html):
+    """
+    Fallback HTML parse path.  etymonline uses hashed CSS class names
+    (e.g. 'word__deftext--2b9Rq') so we match on stable class-name prefixes.
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    entries = []
+    seen = set()
+
+    # Each entry lives in a container div/section with a "word__" class
+    containers = soup.find_all(
+        lambda t: t.name in ("section", "div", "article")
+        and (_has_cls(t, "word__deflist") or _has_cls(t, "word__col"))
+    )
+    if not containers:
+        # Broad fallback: any <section> that contains a word-name element
+        containers = [
+            s for s in soup.find_all("section")
+            if s.find(lambda t: _has_cls(t, "word__name"))
+        ]
+
+    for el in containers:
+        name_el = el.find(lambda t: _has_cls(t, "word__name"))
+        if not name_el:
+            continue
+        word = name_el.get_text(" ", strip=True)
+        if not word or word in seen:
+            continue
+        seen.add(word)
+
+        text_el = el.find(lambda t: _has_cls(t, "word__deftext"))
+        etymology = text_el.get_text(" ", strip=True) if text_el else ""
+        entries.append({"word": word, "etymology": etymology})
+
+    return entries
+
+
+def parse_entries(html):
+    """Try Next.js JSON embed first; fall back to HTML scraping."""
+    return _parse_next_data(html) or _parse_html(html)
+
+
+def parse_related(html, exclude=""):
+    """Return a de-duplicated list of word slugs linked from a word page."""
+    soup = BeautifulSoup(html, "html.parser")
+    seen, words = set(), []
+    for a in soup.find_all("a", href=True):
+        href = a["href"]
+        if href.startswith("/word/"):
+            w = href[6:].split("?")[0].strip("/")
+            if w and w != exclude and w not in seen:
+                seen.add(w)
+                words.append(w)
+    return words
+
+
+# ── Core operations ───────────────────────────────────────────────────────────
+
+def search(query, offline=False, no_cache=False):
+    """
+    Search etymonline.com for `query`.
+    Returns (list[entry_dict], from_cache_bool).
+    """
+    key = _cache_key("search", query)
+    if not no_cache:
+        cached = cache_get(key)
+        if cached is not None:
+            return cached, True
+
+    if offline:
+        return [], False
+
+    url = f"{BASE_URL}/search?q={requests.utils.quote(query)}"
+    html = fetch(url)
+    entries = parse_entries(html)
+    cache_set(key, entries)
+    return entries, False
+
+
+def lookup(word, offline=False, no_cache=False):
+    """
+    Fetch the etymology page for `word`.
+    Returns (result_dict, from_cache_bool).
+    result_dict keys: word, entries, related
+    """
+    key = _cache_key("word", word)
+    if not no_cache:
+        cached = cache_get(key)
+        if cached is not None:
+            return cached, True
+
+    if offline:
+        return {"word": word, "entries": [], "related": []}, False
+
+    url = f"{BASE_URL}/word/{requests.utils.quote(word)}"
+    html = fetch(url)
+    entries = parse_entries(html)
+    related = parse_related(html, exclude=word)[:15]
+    result = {"word": word, "entries": entries, "related": related}
+    cache_set(key, result)
+    return result, False
+
+
+def explore(word, depth=1, offline=False, no_cache=False):
+    """
+    Look up `word`, then (when depth > 0) also fetch the first few related
+    words so the caller can display a richer picture.
+    Returns an ordered dict  {word: result_dict, ...}.
+    """
+    root, _ = lookup(word, offline=offline, no_cache=no_cache)
+    explored = {word: root}
+
+    if depth > 0:
+        for rel in root.get("related", [])[:3]:
+            if rel not in explored:
+                result, _ = lookup(rel, offline=offline, no_cache=no_cache)
+                explored[rel] = result
+
+    return explored
+
+
+# ── Formatted output ──────────────────────────────────────────────────────────
+
+BAR = "─" * WIDTH
+
+
+def _wrap(text, indent=4):
+    return textwrap.fill(
+        text, width=WIDTH,
+        initial_indent=" " * indent,
+        subsequent_indent=" " * indent,
+    )
+
+
+def print_entries(entries, header):
+    print(f"\n{BAR}")
+    print(f"  {header}")
+    print(BAR)
+    if not entries:
+        print("  (no entries found)\n")
+        return
+    for e in entries:
+        print(f"\n  {e.get('word', '(unknown)')}")
+        etym = e.get("etymology", "")
+        if etym:
+            print(_wrap(etym))
+    print()
+
+
+def print_lookup(result):
+    word    = result.get("word", "")
+    entries = result.get("entries", [])
+    related = result.get("related", [])
+
+    print_entries(entries, f"Etymology of: {word}")
+
+    if related:
+        print("  " + "─" * (WIDTH - 2))
+        rel_line = "  Related: " + ", ".join(related[:10])
+        print(textwrap.fill(rel_line, width=WIDTH, subsequent_indent="    "))
+        print()
+
+
+def print_explore(explored):
+    root_word = next(iter(explored))
+    print_lookup(explored[root_word])
+
+    others = {k: v for k, v in explored.items() if k != root_word}
+    if not others:
+        return
+
+    print(BAR)
+    print("  Explored related entries:")
+    print(BAR)
+    for word, result in others.items():
+        entries = result.get("entries", [])
+        if not entries:
+            continue
+        e = entries[0]
+        print(f"\n  {e.get('word', word)}")
+        etym = e.get("etymology", "")
+        if etym:
+            snippet = etym[:300] + ("…" if len(etym) > 300 else "")
+            print(_wrap(snippet))
+    print()
+
+
+# ── CLI ───────────────────────────────────────────────────────────────────────
+
+def build_parser():
+    p = argparse.ArgumentParser(
+        prog="etymonline",
+        description="Search and explore word etymologies from etymonline.com",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=__doc__,
+    )
+    p.add_argument("--offline",  action="store_true",
+                   help="Use only cached results; no network requests")
+    p.add_argument("--json",     action="store_true",
+                   help="Output raw JSON")
+    p.add_argument("--no-cache", action="store_true", dest="no_cache",
+                   help="Skip cache; always fetch fresh")
+
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("search", help="Search for words matching a query")
+    s.add_argument("query", nargs="+", help="Search terms")
+
+    lk = sub.add_parser("look", help="Look up a specific word")
+    lk.add_argument("word")
+
+    ex = sub.add_parser("explore", help="Look up a word and follow related entries")
+    ex.add_argument("word")
+    ex.add_argument("--depth", type=int, default=1, metavar="N",
+                    help="Hops to follow from the root word (default: 1)")
+
+    ca = sub.add_parser("cache", help="Manage the local cache")
+    ca.add_argument("--list",  action="store_true", help="List cached entries")
+    ca.add_argument("--clear", action="store_true", help="Delete all cached entries")
+
+    return p
+
+
+def main():
+    parser = build_parser()
+    args = parser.parse_args()
+
+    try:
+        if args.cmd == "search":
+            query = " ".join(args.query)
+            results, from_cache = search(query, offline=args.offline,
+                                         no_cache=args.no_cache)
+            if args.offline and not results:
+                sys.exit(f"No cached results for '{query}'. Re-run without --offline.")
+            if args.json:
+                print(json.dumps(results, indent=2))
+            else:
+                n   = len(results)
+                lbl = f"Search: {query!r}  ({n} entr{'y' if n == 1 else 'ies'})"
+                if from_cache:
+                    lbl += "  [cached]"
+                print_entries(results, lbl)
+
+        elif args.cmd == "look":
+            result, from_cache = lookup(args.word, offline=args.offline,
+                                        no_cache=args.no_cache)
+            if args.offline and not result["entries"]:
+                sys.exit(f"No cached entry for '{args.word}'. Re-run without --offline.")
+            if args.json:
+                print(json.dumps(result, indent=2))
+            else:
+                if from_cache:
+                    result = dict(result, word=result["word"] + "  [cached]")
+                print_lookup(result)
+
+        elif args.cmd == "explore":
+            explored = explore(args.word, depth=args.depth,
+                               offline=args.offline, no_cache=args.no_cache)
+            if args.json:
+                print(json.dumps(explored, indent=2))
+            else:
+                print_explore(explored)
+
+        elif args.cmd == "cache":
+            if args.clear:
+                n = cache_clear()
+                print(f"Cleared {n} cached entr{'y' if n == 1 else 'ies'} from {CACHE_DIR}")
+            else:
+                keys = cache_list()
+                if not keys:
+                    print(f"Cache is empty.  ({CACHE_DIR})")
+                else:
+                    print(f"{len(keys)} cached entr{'y' if len(keys) == 1 else 'ies'} "
+                          f"in {CACHE_DIR}:")
+                    for k in keys:
+                        print(f"  {k}")
+
+    except requests.HTTPError as exc:
+        sys.exit(f"HTTP error: {exc}")
+    except requests.ConnectionError:
+        sys.exit("Network error. Check your connection or use --offline.")
+    except requests.Timeout:
+        sys.exit("Request timed out. Try again or use --offline.")
+    except KeyboardInterrupt:
+        sys.exit("\nInterrupted.")
+
+
+if __name__ == "__main__":
+    main()
