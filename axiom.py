@@ -119,8 +119,9 @@ DIMENSIONS = [
             "generating new approaches rather than recycling standard templates?",
             "To what degree does the organization inspire and illuminate new "
             "thinking in its field — shifting how others see the problem?",
-            "How skilled and specialized is the organization's core workforce "
-            "relative to the demands of its mission?",
+            "To what degree does the organization inspire the people it serves "
+            "to see themselves differently — not just receive services, but "
+            "awaken to their own agency?",
         ],
     },
     {
