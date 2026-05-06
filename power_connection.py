@@ -2,12 +2,14 @@
 """power_connection.py — Numerological date calculator.
 
 Three steps, in order:
-  1. Day Calculation:  month + day → understand the day's intelligence
-  2. Path One         (Whole Year):       month + day + year → reduce
-  3. Path Two         (Individual Digits): each digit separately → reduce
+  1. The Root:  month expresses through day → the date's foundation
+  2. Path One   (Whole Year):       root + year → reduce
+  3. Path Two   (Individual Digits): each digit separately → reduce
 
-The day is understood first. The user is then birthed into
-both full calculations, which converge to a single born number.
+Every month expresses itself through a day to form a date.
+That date (month + day) is the root. The year then amplifies
+the intelligence of the root. Both full calculations are
+birthed from that understanding.
 
 Usage:
   python power_connection.py              # today's date
@@ -75,13 +77,16 @@ def _digit_sum(n):
 def calculate(month, day, year):
     """
     Returns a dict containing all three steps and the born result.
-    Step 1 — Day Calculation — must be understood before steps 2 & 3.
-    """
-    # Step 1 — Day: month + day, reduced
-    day_raw      = month + day
-    day_born     = reduce_to_single(day_raw)
 
-    # Step 2 — Path One: whole year added together, then reduced
+    Step 1 — Root: month expresses through day; this is the date's foundation.
+    Step 2 — Path One: the year amplifies the root (whole year method).
+    Step 3 — Path Two: the year amplifies the root (individual digit method).
+    """
+    # Step 1 — Root: month expressing through day forms the date
+    root_raw  = month + day
+    root_born = reduce_to_single(root_raw)
+
+    # Step 2 — Path One: root + year as whole numbers, then reduced
     p1_raw      = month + day + year
     p1_compound = _digit_sum(p1_raw) if p1_raw > 99 else p1_raw
     p1_born     = reduce_to_single(p1_compound)
@@ -92,43 +97,43 @@ def calculate(month, day, year):
     p2_compound = p2_raw
     p2_born     = reduce_to_single(p2_compound)
 
-    directive = _build_directive(month, day, year, day_raw, day_born,
+    directive = _build_directive(month, day, year, root_raw, root_born,
                                  p1_raw, p1_compound, p2_raw, p2_compound, p1_born)
 
     return {
-        "date":      {"month": month, "day": day, "year": year},
-        "day_calc":  {"raw": day_raw, "born": day_born},
-        "path_one":  {"raw": p1_raw,  "compound": p1_compound, "born": p1_born},
-        "path_two":  {"raw": p2_raw,  "compound": p2_compound, "born": p2_born},
-        "born":      p1_born,
+        "date":     {"month": month, "day": day, "year": year},
+        "root":     {"raw": root_raw, "born": root_born},
+        "path_one": {"raw": p1_raw,  "compound": p1_compound, "born": p1_born},
+        "path_two": {"raw": p2_raw,  "compound": p2_compound, "born": p2_born},
+        "born":     p1_born,
         "directive": directive,
     }
 
 
 def _build_directive(month, day, year,
-                     day_raw, day_born,
+                     root_raw, root_born,
                      p1_raw, p1_compound,
                      p2_raw, p2_compound, born):
     parts = []
 
-    # Day foundation
+    # The root: month expresses through day
     m_name = _label(month)
     d_name = _label(day)
-    day_label = ""
-    if day_raw in COMPOUND_MEANINGS:
-        day_label = f" [{COMPOUND_MEANINGS[day_raw][0]}]"
-    elif day_raw in SINGLE_MEANINGS:
-        day_label = f" [{SINGLE_MEANINGS[day_raw][0]}]"
+    root_label = ""
+    if root_raw in COMPOUND_MEANINGS:
+        root_label = f" [{COMPOUND_MEANINGS[root_raw][0]}]"
+    elif root_raw in SINGLE_MEANINGS:
+        root_label = f" [{SINGLE_MEANINGS[root_raw][0]}]"
     parts.append(
-        f"{month}/{day} — {m_name} powered refinement of/by/through {d_name}."
-        f" The day is born to {day_raw}{day_label}."
+        f"{month} ({m_name}) expresses itself through {day} ({d_name})"
+        f" to form the date. The root is born to {root_raw}{root_label}."
     )
 
-    # Year amplifies
+    # Year amplifies the intelligence of the date (the root)
     year_digits = [int(d) for d in str(year)]
     year_phrase = " → ".join(f"{d}({_label(d)})" for d in year_digits)
     parts.append(
-        f"{year} amplifies the day's intelligence: {year_phrase}."
+        f"{year} amplifies the intelligence of the date: {year_phrase}."
     )
 
     # Compound interpretations
@@ -158,7 +163,7 @@ def _wrap(text, indent=2):
 
 def print_result(result):
     d   = result["date"]
-    dc  = result["day_calc"]
+    rt  = result["root"]
     p1  = result["path_one"]
     p2  = result["path_two"]
 
@@ -166,26 +171,29 @@ def print_result(result):
     print(f"  POWER CONNECTION  —  {d['month']}/{d['day']}/{d['year']}")
     print(BAR)
 
-    # ── Step 1: understand the day ────────────────────────────────────────────
-    day_raw   = dc["raw"]
-    day_born  = dc["born"]
-    day_label = ""
-    if day_raw in COMPOUND_MEANINGS:
-        day_label = f"  [{COMPOUND_MEANINGS[day_raw][0]}]"
-    elif day_raw in SINGLE_MEANINGS:
-        day_label = f"  [{SINGLE_MEANINGS[day_raw][0]}]"
+    # ── Step 1: The Root — month expresses through day ────────────────────────
+    root_raw  = rt["raw"]
+    root_born = rt["born"]
+    root_label = ""
+    if root_raw in COMPOUND_MEANINGS:
+        root_label = f"  [{COMPOUND_MEANINGS[root_raw][0]}]"
+    elif root_raw in SINGLE_MEANINGS:
+        root_label = f"  [{SINGLE_MEANINGS[root_raw][0]}]"
 
-    print(f"\n  STEP 1  —  Understand the Day")
-    print(f"    {d['month']} + {d['day']} = {day_raw}{day_label}")
-    if day_raw != day_born:
-        digits_day = " + ".join(str(x) for x in str(day_raw))
-        print(f"    {digits_day} = {day_born}  [{_label(day_born)}]")
+    print(f"\n  STEP 1  —  The Root  (Month expresses through Day)")
+    print(f"    {d['month']} [{_label(d['month'])}]  expresses through"
+          f"  {d['day']} [{_label(d['day'])}]")
+    print(f"    {d['month']} + {d['day']} = {root_raw}{root_label}")
+    if root_raw != root_born:
+        digits_root = " + ".join(str(x) for x in str(root_raw))
+        print(f"    {digits_root} = {root_born}  [{_label(root_born)}]")
 
     print(f"\n  {'─' * (WIDTH - 2)}")
+    print(f"  The year amplifies the intelligence of the date.")
     print(f"  Born into the full calculations:\n")
 
-    # ── Step 2: Path One ──────────────────────────────────────────────────────
-    print(f"  STEP 2  —  Path One  (Whole Year)")
+    # ── Step 2: Path One — year amplifies the root (whole year) ───────────────
+    print(f"  STEP 2  —  Path One  (Year amplifies — Whole Numbers)")
     print(f"    {d['month']} + {d['day']} + {d['year']} = {p1['raw']}")
     if p1['raw'] != p1['compound']:
         spaced = "  ".join(str(p1['raw']))
@@ -193,8 +201,8 @@ def print_result(result):
     digits_c = " + ".join(str(x) for x in str(p1['compound']))
     print(f"    {digits_c} = {p1['born']}  [{_label(p1['born'])}]")
 
-    # ── Step 3: Path Two ──────────────────────────────────────────────────────
-    print(f"\n  STEP 3  —  Path Two  (Individual Digits)")
+    # ── Step 3: Path Two — year amplifies the root (individual digits) ─────────
+    print(f"\n  STEP 3  —  Path Two  (Year amplifies — Individual Digits)")
     digits_shown = " + ".join(
         str(x) for x in [int(c) for c in f"{d['month']}{d['day']}{d['year']}"]
     )

@@ -41,9 +41,9 @@ class TestReduceToSingle(unittest.TestCase):
 class TestCalculate(unittest.TestCase):
     def test_date_5_6_2026(self):
         r = pc.calculate(5, 6, 2026)
-        # Step 1 — Day: 5+6=11 (master number, preserved)
-        self.assertEqual(r["day_calc"]["raw"],  11)
-        self.assertEqual(r["day_calc"]["born"], 11)
+        # Step 1 — Root: 5+6=11 (master number, preserved)
+        self.assertEqual(r["root"]["raw"],  11)
+        self.assertEqual(r["root"]["born"], 11)
         # Step 2 — Path One: 5+6+2026=2037 → 2+0+3+7=12 → 1+2=3
         self.assertEqual(r["path_one"]["raw"],      2037)
         self.assertEqual(r["path_one"]["compound"], 12)
@@ -55,20 +55,20 @@ class TestCalculate(unittest.TestCase):
         # Both paths born to 3
         self.assertEqual(r["born"], 3)
 
-    def test_day_calc_raw_is_month_plus_day(self):
+    def test_root_raw_is_month_plus_day(self):
         r = pc.calculate(3, 8, 2025)
-        self.assertEqual(r["day_calc"]["raw"], 3 + 8)
+        self.assertEqual(r["root"]["raw"], 3 + 8)
 
-    def test_day_calc_born_reduces(self):
+    def test_root_born_reduces(self):
         # month=9, day=9 → 18 → 1+8=9
         r = pc.calculate(9, 9, 2020)
-        self.assertEqual(r["day_calc"]["raw"],  18)
-        self.assertEqual(r["day_calc"]["born"], 9)
+        self.assertEqual(r["root"]["raw"],  18)
+        self.assertEqual(r["root"]["born"], 9)
 
-    def test_day_calc_master_number_preserved(self):
+    def test_root_master_number_preserved(self):
         # month=2, day=9 → 11 (master)
         r = pc.calculate(2, 9, 2024)
-        self.assertEqual(r["day_calc"]["born"], 11)
+        self.assertEqual(r["root"]["born"], 11)
 
     def test_born_number_matches_path_one(self):
         r = pc.calculate(1, 1, 2024)
@@ -86,7 +86,7 @@ class TestCalculate(unittest.TestCase):
 
     def test_result_structure(self):
         r = pc.calculate(5, 6, 2026)
-        for key in ("date", "day_calc", "path_one", "path_two", "born", "directive"):
+        for key in ("date", "root", "path_one", "path_two", "born", "directive"):
             self.assertIn(key, r)
 
     def test_date_stored_correctly(self):
@@ -149,15 +149,23 @@ class TestPrintResult(unittest.TestCase):
         self.assertLess(step1_pos, step2_pos)
         self.assertLess(step2_pos, step3_pos)
 
-    def test_output_day_calculation_shown(self):
+    def test_output_root_shown(self):
         r = pc.calculate(5, 6, 2026)
         captured = StringIO()
         with patch("sys.stdout", captured):
             pc.print_result(r)
         out = captured.getvalue()
-        self.assertIn("Understand the Day", out)
+        self.assertIn("The Root", out)
+        self.assertIn("expresses through", out)
         self.assertIn("11", out)        # 5+6=11
         self.assertIn("Illumination", out)
+
+    def test_output_year_amplifies_language(self):
+        r = pc.calculate(5, 6, 2026)
+        captured = StringIO()
+        with patch("sys.stdout", captured):
+            pc.print_result(r)
+        self.assertIn("amplifies the intelligence of the date", captured.getvalue())
 
     def test_output_born_into_label(self):
         r = pc.calculate(5, 6, 2026)
