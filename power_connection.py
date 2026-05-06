@@ -15,12 +15,18 @@ Usage:
   python power_connection.py              # today's date
   python power_connection.py 5 6 2026    # month day year
   python power_connection.py --json 5 6 2026
+
+  python power_connection.py mark 7 2 2026 "Proceed with project"
+  python power_connection.py marks        # list all marked dates
 """
 
 import argparse
 import json
+import os
 import sys
 from datetime import date
+
+MARKS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".power_marks.json")
 
 # ── Number intelligence ────────────────────────────────────────────────────────
 
@@ -220,29 +226,102 @@ def print_result(result):
         print()
 
 
+# ── Marks ─────────────────────────────────────────────────────────────────────
+
+def marks_load():
+    if os.path.exists(MARKS_FILE):
+        with open(MARKS_FILE) as f:
+            return json.load(f)
+    return []
+
+
+def marks_save(marks):
+    with open(MARKS_FILE, "w") as f:
+        json.dump(marks, f, indent=2)
+
+
+def mark_date(month, day, year, note=""):
+    result  = calculate(month, day, year)
+    marks   = marks_load()
+    entry   = {
+        "date":      f"{month}/{day}/{year}",
+        "note":      note,
+        "root":      result["root"]["raw"],
+        "root_born": result["root"]["born"],
+        "born":      result["born"],
+        "born_name": SINGLE_MEANINGS.get(result["born"], ("", ""))[0],
+    }
+    marks.append(entry)
+    marks_save(marks)
+    return entry, result
+
+
+def print_mark(entry, result):
+    print(f"\n{BAR}")
+    print(f"  MARKED  —  {entry['date']}")
+    if entry["note"]:
+        print(f"  {entry['note']}")
+    print(BAR)
+    print_result(result)
+    print(f"  Marked: {entry['date']}  |  Root: {entry['root']} → {entry['root_born']}"
+          f"  |  Born: {entry['born']} [{entry['born_name']}]\n")
+
+
+def print_marks_list():
+    marks = marks_load()
+    if not marks:
+        print("No marked dates.")
+        return
+    print(f"\n{BAR}")
+    print(f"  MARKED DATES")
+    print(BAR)
+    for m in marks:
+        note = f"  —  {m['note']}" if m.get("note") else ""
+        print(f"\n  {m['date']}{note}")
+        print(f"    Root: {m['root']} → {m['root_born']} [{_label(m['root_born'])}]"
+              f"    Born: {m['born']} [{m.get('born_name', _label(m['born']))}]")
+    print()
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
-def build_parser():
-    p = argparse.ArgumentParser(
-        prog="power_connection",
-        description="Calculate the power connection of a date.",
-    )
-    p.add_argument("month", nargs="?", type=int, help="Month (1-12)")
-    p.add_argument("day",   nargs="?", type=int, help="Day (1-31)")
-    p.add_argument("year",  nargs="?", type=int, help="Year (e.g. 2026)")
-    p.add_argument("--json", action="store_true", help="Output raw JSON")
-    return p
-
-
 def main():
-    parser = build_parser()
-    args = parser.parse_args()
+    argv = sys.argv[1:]
 
-    if args.month and args.day and args.year:
-        month, day, year = args.month, args.day, args.year
-    else:
-        today = date.today()
-        month, day, year = today.month, today.day, today.year
+    # mark / marks are detected before handing off to argparse
+    if argv and argv[0] == "marks":
+        print_marks_list()
+        return
+
+    use_json = "--json" in argv
+    if use_json:
+        argv = [a for a in argv if a != "--json"]
+
+    if argv and argv[0] == "mark":
+        rest = argv[1:]
+        if len(rest) < 3:
+            sys.exit("Usage: power_connection.py mark <month> <day> <year> [note]")
+        try:
+            month, day, year = int(rest[0]), int(rest[1]), int(rest[2])
+        except ValueError:
+            sys.exit("month, day, and year must be integers.")
+        note = " ".join(rest[3:])
+        entry, result = mark_date(month, day, year, note)
+        if use_json:
+            print(json.dumps({"mark": entry, "result": result}, indent=2))
+        else:
+            print_mark(entry, result)
+        return
+
+    # default: calculate a date
+    try:
+        if len(argv) >= 3:
+            month, day, year = int(argv[0]), int(argv[1]), int(argv[2])
+        else:
+            today = date.today()
+            month, day, year = today.month, today.day, today.year
+    except ValueError:
+        sys.exit("Usage: power_connection.py [month day year]")
 
     if not (1 <= month <= 12):
         sys.exit("Month must be between 1 and 12.")
@@ -253,7 +332,7 @@ def main():
 
     result = calculate(month, day, year)
 
-    if args.json:
+    if use_json:
         print(json.dumps(result, indent=2))
     else:
         print_result(result)

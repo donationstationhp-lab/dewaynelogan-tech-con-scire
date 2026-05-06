@@ -182,5 +182,54 @@ class TestPrintResult(unittest.TestCase):
         self.assertIn("DIRECTIVE", captured.getvalue())
 
 
+class TestMarks(unittest.TestCase):
+    def setUp(self):
+        self._orig = pc.MARKS_FILE
+        import tempfile
+        self._tmp = tempfile.mktemp(suffix=".json")
+        pc.MARKS_FILE = self._tmp
+
+    def tearDown(self):
+        pc.MARKS_FILE = self._orig
+        if os.path.exists(self._tmp):
+            os.remove(self._tmp)
+
+    def test_mark_date_creates_entry(self):
+        entry, result = pc.mark_date(7, 2, 2026, "Proceed with project")
+        self.assertEqual(entry["date"], "7/2/2026")
+        self.assertEqual(entry["note"], "Proceed with project")
+        self.assertEqual(entry["born"], 1)
+        self.assertEqual(entry["born_name"], "Origin")
+
+    def test_mark_date_persists(self):
+        pc.mark_date(7, 2, 2026, "Proceed with project")
+        marks = pc.marks_load()
+        self.assertEqual(len(marks), 1)
+        self.assertEqual(marks[0]["date"], "7/2/2026")
+
+    def test_mark_root_recorded(self):
+        entry, _ = pc.mark_date(7, 2, 2026, "")
+        self.assertEqual(entry["root"],      9)
+        self.assertEqual(entry["root_born"], 9)
+
+    def test_multiple_marks(self):
+        pc.mark_date(7, 2, 2026, "First")
+        pc.mark_date(5, 6, 2026, "Second")
+        marks = pc.marks_load()
+        self.assertEqual(len(marks), 2)
+        self.assertEqual(marks[1]["date"], "5/6/2026")
+
+    def test_marks_load_empty_when_no_file(self):
+        self.assertEqual(pc.marks_load(), [])
+
+    def test_print_mark_contains_note(self):
+        entry, result = pc.mark_date(7, 2, 2026, "Proceed with project")
+        captured = StringIO()
+        with patch("sys.stdout", captured):
+            pc.print_mark(entry, result)
+        self.assertIn("Proceed with project", captured.getvalue())
+        self.assertIn("7/2/2026", captured.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()
