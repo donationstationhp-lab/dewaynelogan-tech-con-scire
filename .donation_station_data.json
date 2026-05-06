@@ -1,0 +1,45 @@
+{
+  "next_id": 2,
+  "items": {
+    "DS-0001": {
+      "id": "DS-0001",
+      "name": "Winter Jacket",
+      "category": "clothing",
+      "condition": "good",
+      "donor": "Jane Smith",
+      "stage": "distributed",
+      "history": [
+        {
+          "stage": "intake",
+          "timestamp": "2026-05-06T17:35:25Z",
+          "by": "DeWayne",
+          "notes": "Clean, lightly worn"
+        },
+        {
+          "stage": "qc",
+          "timestamp": "2026-05-06T17:35:25Z",
+          "by": "Staff",
+          "passed": true,
+          "notes": "No repairs needed",
+          "maintenance": ""
+        },
+        {
+          "stage": "storage",
+          "timestamp": "2026-05-06T17:35:25Z",
+          "location": "B-3",
+          "by": "Staff",
+          "notes": "Shelf 3"
+        },
+        {
+          "stage": "distributed",
+          "timestamp": "2026-05-06T17:35:25Z",
+          "recipient": "Community Center",
+          "by": "DeWayne",
+          "notes": "Delivered Tuesday"
+        }
+      ],
+      "location": "B-3",
+      "recipient": "Community Center"
+    }
+  }
+}
