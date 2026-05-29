@@ -24,8 +24,9 @@ class TestLexiconFromFile(unittest.TestCase):
 
     def test_name_returns_string(self):
         self.assertEqual(self.lex.name(1), "Knowledge")
-        self.assertEqual(self.lex.name(0), "Cipher")
-        self.assertEqual(self.lex.name(9), "Born")
+        self.assertEqual(self.lex.name(0), "Completion")
+        self.assertEqual(self.lex.name(7), "Consciousness")
+        self.assertEqual(self.lex.name(9), "Birth")
 
     def test_pie_root_is_string(self):
         for n in range(10):
@@ -35,11 +36,16 @@ class TestLexiconFromFile(unittest.TestCase):
         for n in range(10):
             self.assertTrue(self.lex.instruction(n))
 
-    def test_key_words_is_list(self):
+    def test_say_is_non_empty_string(self):
         for n in range(10):
-            kw = self.lex.key_words(n)
-            self.assertIsInstance(kw, list)
-            self.assertGreater(len(kw), 0)
+            s = self.lex.say(n)
+            self.assertIsInstance(s, str)
+            self.assertTrue(s)
+
+    def test_verb_field_present(self):
+        self.assertEqual(self.lex.verb(1), "gained")
+        self.assertEqual(self.lex.verb(7), "given")
+        self.assertEqual(self.lex.verb(2), "")
 
     def test_labels_present(self):
         self.assertTrue(self.lex.label_attention)

@@ -1,82 +1,78 @@
 {
-  "_comment": "Editable position lexicon for Supreme Mathematics. Each key is a digit 0-9. Add or change any field freely — the code reads this at runtime and never hard-codes interpretations.",
+  "_comment": "The user's own cipher — editable. Calculation and address logic are sealed in code; this lexicon is the translation layer. Edit any field freely; the engine re-reads at runtime.",
   "positions": {
     "0": {
-      "name": "Cipher",
-      "pie_root": "*kʷe- (cycle, revolve, completeness)",
-      "key_words": ["360° completion", "full circle", "everything", "the whole", "return"],
-      "organizing_principle": "Full-circle evaluation; holistic impact; community circle",
-      "instruction": "All things exist in a circle. Complete one cycle before beginning the next. Return knowledge to community."
+      "name": "Completion",
+      "pie_root": "com-plēre — to fill together",
+      "verb": "",
+      "say": "Fill and seal. Hand the full coil to its next source."
     },
     "1": {
       "name": "Knowledge",
-      "pie_root": "*ǵneh₃- (to know, recognize, be acquainted with)",
-      "key_words": ["foundation", "know the ledge", "observation", "root causes", "seed"],
-      "organizing_principle": "Needs assessment, community research, understanding root causes, gathering facts",
-      "instruction": "Knowledge is the foundation of all things. Observe before acting. Gather facts. Know thyself first."
+      "pie_root": "*ǵneh₃-* — to know",
+      "verb": "gained",
+      "say": "Track the trail. Attend to what can be learned."
     },
     "2": {
       "name": "Wisdom",
-      "pie_root": "*weid- (to see, to know by having seen)",
-      "key_words": ["making knowledge known", "wise words spoken", "action", "communication", "woman"],
-      "organizing_principle": "Communication strategy, outreach, public narrative, relationship building",
-      "instruction": "Wisdom is knowledge applied through wise word and deed. Speak with intention. Make what you know visible."
+      "pie_root": "*weid-* — to see",
+      "verb": "",
+      "say": "Let seeing become the means; act on what was shown."
     },
     "3": {
       "name": "Understanding",
-      "pie_root": "*steh₂- (to stand firm, be established)",
-      "key_words": ["clear picture", "child of K+W", "best part", "comprehension", "shared vision"],
-      "organizing_principle": "Community education, program clarity, shared vision, collective analysis",
-      "instruction": "Understanding is the clear picture born from Knowledge and Wisdom. See what is before deciding what should be."
+      "pie_root": "*(inter/under)-stā-* — to stand between",
+      "verb": "",
+      "say": "Stand on the common ground beneath the two."
     },
     "4": {
-      "name": "Culture / Freedom",
-      "pie_root": "*kwel- (to revolve, move around; to till, cultivate; to dwell)",
-      "key_words": ["I-Self-Lord-And-Master", "way of life", "liberty", "self-determination", "autonomous choice"],
-      "organizing_principle": "Organizational culture, self-determination mission, autonomous decision-making",
-      "instruction": "Culture is the way you choose to live. Move in freedom. Refine your way of life toward liberation."
+      "name": "Cultured Freedom",
+      "pie_root": "*kʷel-* — to turn, to till",
+      "verb": "",
+      "say": "Work the freedom. Till it; it is freedom only once made."
     },
     "5": {
-      "name": "Power / Refinement",
-      "pie_root": "*per- (forward, through, intensive) / *pṓds (foot, foundation, ground)",
-      "key_words": ["truth as light", "purifying self", "building strength", "capacity", "force disciplined"],
-      "organizing_principle": "Capacity building, organizational development, leadership growth",
-      "instruction": "Power is truth in action. Refine yourself through disciplined work. Purify what you are building."
+      "name": "Powered Refinement",
+      "pie_root": "re- + finis — back to the fine",
+      "verb": "",
+      "say": "Refine by force held steady; bring it back to fineness."
     },
     "6": {
       "name": "Equality",
-      "pie_root": "*h₁eq- (level, equal, like)",
-      "key_words": ["being equal in all things", "sharing without hierarchy", "balance", "mutual benefit", "devil"],
-      "organizing_principle": "Equitable practices, mutual benefit structures, horizontal organizing",
-      "instruction": "Equality means treating all according to truth, without hierarchy. Restore balance where there is none."
+      "pie_root": "*aequus* — level, even",
+      "verb": "",
+      "say": "Bring the distinct to par. Pair without flattening."
     },
     "7": {
-      "name": "God",
-      "pie_root": "*ǵʰew- (to call, invoke) / *dyew- (sky, heaven, the shining one)",
-      "key_words": ["supreme being", "black man with knowledge of self", "perfection", "divine potential", "luck"],
-      "organizing_principle": "Leadership development, recognizing community power, divine potential in all",
-      "instruction": "7 is the most perfect number. Recognize the divine power within yourself and your community. Act from that place."
+      "name": "Consciousness",
+      "pie_root": "com-scīre — to know-with",
+      "verb": "given",
+      "say": "Know with another. This seat is given, not gotten."
     },
     "8": {
       "name": "Build / Destroy",
-      "pie_root": "*bʰuH- (to grow, become, come into being) / *dʰer- (to hold firmly, support)",
-      "key_words": ["adding to the cipher", "eliminating negativity", "wealth", "replace oppressive structures", "elevate"],
-      "organizing_principle": "Asset-based development, dismantling harmful systems, creating alternatives",
-      "instruction": "Build what elevates life. Destroy what diminishes it. Construction and abolition both serve truth when aimed rightly."
+      "pie_root": "de-struere — to un-pile",
+      "verb": "",
+      "say": "Tear down what was piled wrong; raise it true."
     },
     "9": {
-      "name": "Born",
-      "pie_root": "*bʰer- (to carry, bear forth; to give birth, bring into existence)",
-      "key_words": ["brought into existence", "completion of a cycle", "highest single digit", "fruition", "campaign victories"],
-      "organizing_principle": "Program outcomes, launching initiatives, manifesting vision, concrete wins",
-      "instruction": "9 is the highest. What you have built is now born into the world. Bring it forth. Complete the cycle."
+      "name": "Birth",
+      "pie_root": "*bʰer-* — to bear, to carry",
+      "verb": "",
+      "say": "Bear it forth. Carry the made thing into being."
     }
   },
   "reading_labels": {
     "attention": "Attention",
+    "attention_op": "Calculate",
+    "attention_prep": "of",
     "intention": "Intention",
+    "intention_op": "Decode",
+    "intention_prep": "by",
     "purpose": "Purpose",
+    "purpose_op": "Translate",
+    "purpose_prep": "through",
+    "convergence": "Convergence",
     "cipher": "Date Vibration"
-  },
-  "onion_year": 2026
+  }
 }

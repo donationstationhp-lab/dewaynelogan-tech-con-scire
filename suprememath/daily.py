@@ -1,6 +1,15 @@
 """
-Core reading engine: maps a date to Attention / Intention / Purpose
-plus the date-vibration cipher and moon phase.
+Core reading engine — maps a datetime to Attention · Intention · Purpose.
+
+  now  →  Calculate (Method B)   →  Attention   "of"
+       →  Decode (12-hour clock) →  Intention   "by"
+       →  Translate (A + I)      →  Purpose     "through"
+       →  Converge (A + I + P)   →  Resolution
+
+Attention  = method_b(date)          — the day's sealed cipher
+Intention  = reduce(hour_12)         — the hour; changes each hour
+Purpose    = reduce(attention + intention)
+Convergence = reduce(attention + intention + purpose)
 """
 
 from __future__ import annotations
@@ -12,69 +21,72 @@ from .lexicon import Lexicon
 from .moon import moon_phase as _moon_phase
 
 
-def _position_record(n: int, lex: Lexicon) -> dict[str, Any]:
-    entry = lex.get(n)
-    return {"number": n, **entry}
+def _rec(n: int, lex: Lexicon) -> dict[str, Any]:
+    return {"number": n, **lex.get(n)}
 
 
 def compute_daily(
-    date: datetime.date,
+    dt: datetime.datetime | datetime.date,
     lex: Lexicon,
-    *,
-    cipher_method: str = "a",
 ) -> dict[str, Any]:
     """
-    Compute the Supreme Mathematics reading for *date*.
+    Compute the Supreme Mathematics reading for *dt*.
 
-    cipher_method controls which arithmetic is used for the Date Vibration:
-      'a'  flat all-digit sum  (default; matches existing journal entries)
-      'b'  component-wise reduce-then-sum
-      'c'  day-of-year ordinal
+    Accepts a datetime (time-aware reading) or a date (intention uses
+    midnight / hour 0, which reduces to 12 on the 12-hour clock).
 
     Returns a dict with keys:
-      date, attention (month), intention (day),
-      purpose (reduce(month+day) — born from both),
-      year (reduce(year) — the year arc),
-      cipher, moon, calculation (Method A display), methods (a/b/c results)
+      datetime, date, time,
+      attention (method_b), intention (reduce of 12-hr hour),
+      purpose (reduce of att+int), convergence (reduce of att+int+pur),
+      address (method_a Y·M·W·D), year_arc (reduce of year),
+      moon, calculation (display string), onion_instruction,
+      methods {a: display_str, b: int, c: int}
     """
-    # Receive Attention OF the month | Gain Intention BY the day
-    # Give Purpose through all being born to (Month + Day)
-    attention_n = reduce(date.month)
-    intention_n = reduce(date.day)
-    purpose_n   = reduce(date.month + date.day)
-    year_n      = reduce(date.year)
+    if isinstance(dt, datetime.datetime):
+        date = dt.date()
+        hour = dt.hour
+    else:
+        date = dt
+        hour = 0
 
-    _methods = {"a": method_a, "b": method_b, "c": method_c}
-    if cipher_method not in _methods:
-        raise ValueError(f"cipher_method must be 'a', 'b', or 'c'; got {cipher_method!r}")
-    cipher_n = _methods[cipher_method](date)
+    h12 = (hour % 12) or 12
 
-    steps_str, _raw_sum, _reduced = calculation_steps(date)
+    attention_n   = method_b(date)
+    intention_n   = reduce(h12)
+    purpose_n     = reduce(attention_n + intention_n)
+    convergence_n = reduce(attention_n + intention_n + purpose_n)
+    year_n        = reduce(date.year)
 
-    attention = _position_record(attention_n, lex)
-    intention = _position_record(intention_n, lex)
-    purpose   = _position_record(purpose_n,   lex)
-    year      = _position_record(year_n,      lex)
-    cipher    = _position_record(cipher_n,    lex)
+    addr      = method_a(date)
+    steps_str, _, _ = calculation_steps(date)
 
-    # "Attention + Intention = Year made clear" — the Onion uses the year arc
+    att  = _rec(attention_n,   lex)
+    itn  = _rec(intention_n,   lex)
+    pur  = _rec(purpose_n,     lex)
+    conv = _rec(convergence_n, lex)
+    yr   = _rec(year_n,        lex)
+
     onion = (
-        f"{attention['name']} + {intention['name']} = "
-        f"{year['name']} made clear."
+        f"{att['name']} · {itn['name']} "
+        f"→ {pur['name']} born, resolved in {conv['name']}."
     )
 
     return {
-        "date": date.isoformat(),
-        "attention":   attention,   # month
-        "intention":   intention,   # day
-        "purpose":     purpose,     # reduce(month + day) — born from both
-        "year":        year,        # reduce(year) — the year arc
-        "cipher":      cipher,
-        "moon":        _moon_phase(date),
-        "calculation": steps_str,
+        "datetime":          dt.isoformat() if isinstance(dt, datetime.datetime) else date.isoformat(),
+        "date":              date.isoformat(),
+        "time":              f"{hour:02d}:{0:02d}",
+        "attention":         att,
+        "intention":         itn,
+        "purpose":           pur,
+        "convergence":       conv,
+        "year_arc":          yr,
+        "address":           addr,
+        "moon":              _moon_phase(dt),
+        "calculation":       steps_str,
         "onion_instruction": onion,
         "methods": {
-            "a": method_a(date),
+            "a": addr["display"],
             "b": method_b(date),
             "c": method_c(date),
         },

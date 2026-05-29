@@ -15,14 +15,13 @@ class Lexicon:
     def __init__(self, path: str | Path):
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
-        # Store positions keyed by int (0-9) for convenience
         self._positions: dict[int, dict[str, Any]] = {
             int(k): v for k, v in data["positions"].items()
         }
         self._labels: dict[str, str] = data.get("reading_labels", {})
         self._raw = data
 
-    # ── Queries ───────────────────────────────────────────────────────────────
+    # ── Position queries ──────────────────────────────────────────────────────
 
     def get(self, n: int) -> dict[str, Any]:
         """Return the full position dict for digit n (0–9)."""
@@ -33,16 +32,22 @@ class Lexicon:
     def name(self, n: int) -> str:
         return self._positions[n]["name"]
 
-    def key_words(self, n: int) -> list[str]:
-        return list(self._positions[n].get("key_words", []))
-
-    def instruction(self, n: int) -> str:
-        return self._positions[n].get("instruction", "")
-
     def pie_root(self, n: int) -> str:
         return self._positions[n].get("pie_root", "")
 
-    # ── Labels ────────────────────────────────────────────────────────────────
+    def verb(self, n: int) -> str:
+        """Sealed verb of reception for this seat (e.g. 'gained', 'given')."""
+        return self._positions[n].get("verb", "")
+
+    def say(self, n: int) -> str:
+        """Brief sealed instruction for this seat."""
+        return self._positions[n].get("say", "")
+
+    def instruction(self, n: int) -> str:
+        """Alias for say()."""
+        return self.say(n)
+
+    # ── Reading labels ────────────────────────────────────────────────────────
 
     @property
     def label_attention(self) -> str:
@@ -57,8 +62,15 @@ class Lexicon:
         return self._labels.get("purpose", "Purpose")
 
     @property
+    def label_convergence(self) -> str:
+        return self._labels.get("convergence", "Convergence")
+
+    @property
     def label_cipher(self) -> str:
         return self._labels.get("cipher", "Date Vibration")
+
+    def label(self, key: str) -> str:
+        return self._labels.get(key, key.replace("_", " ").title())
 
     # ── Introspection ─────────────────────────────────────────────────────────
 
