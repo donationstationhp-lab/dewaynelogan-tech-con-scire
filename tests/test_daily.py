@@ -23,33 +23,39 @@ class TestComputeDaily(unittest.TestCase):
 
     def test_required_keys_present(self):
         r = self._reading("2026-02-07")
-        for key in ("date", "attention", "intention", "purpose",
+        for key in ("date", "attention", "intention", "purpose", "year",
                     "cipher", "moon", "calculation", "onion_instruction", "methods"):
             self.assertIn(key, r, f"Missing key: {key}")
 
     def test_each_position_has_number_and_name(self):
         r = self._reading("2026-02-07")
-        for slot in ("attention", "intention", "purpose", "cipher"):
+        for slot in ("attention", "intention", "purpose", "year", "cipher"):
             self.assertIn("number", r[slot])
             self.assertIn("name",   r[slot])
 
     # ── Arithmetic (reference date: 2026-02-07) ───────────────────────────────
 
-    def test_attention_is_reduced_day(self):
-        # Day 7 → 7
+    def test_attention_is_reduced_month(self):
+        # Month 2 → 2  (Receive Attention OF the month)
         r = self._reading("2026-02-07")
-        self.assertEqual(r["attention"]["number"], reduce(7))
+        self.assertEqual(r["attention"]["number"], reduce(2))
 
-    def test_intention_is_reduced_month(self):
-        # Month 2 → 2
+    def test_intention_is_reduced_day(self):
+        # Day 7 → 7  (Gain Intention BY the day)
         r = self._reading("2026-02-07")
-        self.assertEqual(r["intention"]["number"], reduce(2))
+        self.assertEqual(r["intention"]["number"], reduce(7))
 
-    def test_purpose_is_reduced_year(self):
-        # 2026 → 2+0+2+6=10 → 1
+    def test_purpose_is_reduce_month_plus_day(self):
+        # Purpose = reduce(month + day) = reduce(2 + 7) = reduce(9) = 9 = Born
         r = self._reading("2026-02-07")
-        self.assertEqual(r["purpose"]["number"], reduce(2026))
-        self.assertEqual(r["purpose"]["number"], 1)
+        self.assertEqual(r["purpose"]["number"], reduce(2 + 7))
+        self.assertEqual(r["purpose"]["number"], 9)
+
+    def test_year_is_reduced_year(self):
+        # Year arc: 2026 → 2+0+2+6=10 → 1 = Knowledge
+        r = self._reading("2026-02-07")
+        self.assertEqual(r["year"]["number"], reduce(2026))
+        self.assertEqual(r["year"]["number"], 1)
 
     def test_cipher_method_a(self):
         # 2+7+2+0+2+6 = 19 → 1
@@ -86,11 +92,19 @@ class TestComputeDaily(unittest.TestCase):
     # ── Onion instruction ────────────────────────────────────────────────────
 
     def test_onion_instruction_includes_names(self):
+        # Onion = "{attention} + {intention} = {year} made clear."
         r = self._reading("2026-02-07")
         onion = r["onion_instruction"]
-        self.assertIn(r["intention"]["name"], onion)
         self.assertIn(r["attention"]["name"], onion)
-        self.assertIn(r["purpose"]["name"],   onion)
+        self.assertIn(r["intention"]["name"], onion)
+        self.assertIn(r["year"]["name"],      onion)
+
+    def test_onion_attention_precedes_intention(self):
+        r = self._reading("2026-02-07")
+        onion = r["onion_instruction"]
+        att_pos = onion.index(r["attention"]["name"])
+        itn_pos = onion.index(r["intention"]["name"])
+        self.assertLess(att_pos, itn_pos)
 
     # ── Methods dict ─────────────────────────────────────────────────────────
 

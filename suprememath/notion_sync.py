@@ -70,9 +70,11 @@ def _build_blocks(reading: dict[str, Any]) -> list[dict]:
     day       = datetime.date.fromisoformat(date_str).day
     month     = datetime.date.fromisoformat(date_str).month
 
+    year_rec  = reading["year"]
     a_kw = attention["key_words"][0] if attention.get("key_words") else ""
     i_kw = intention["key_words"][0] if intention.get("key_words") else ""
     p_kw = purpose["key_words"][0]   if purpose.get("key_words")   else ""
+    y_kw = year_rec["key_words"][0]  if year_rec.get("key_words")  else ""
 
     return [
         _h2("📊 Consciousness Calculation"),
@@ -80,26 +82,30 @@ def _build_blocks(reading: dict[str, Any]) -> list[dict]:
         _bullet(f"Calculation: {calc_str}"),
         _bullet(
             f"Date Vibration: {cipher['number']} = {cipher['name']}"
-            + (f" ({a_kw.title()})" if a_kw else "")
         ),
         _divider(),
         _h2(f"🧅 Onion Instruction ({year})"),
         _para(onion, bold=True),
         _h3("Component Decode"),
         _bullet(
-            f"Attention (Day {day}): "
+            f"Attention (Month {month}): "
             f"{attention['number']} = {attention['name']}"
             + (f" — {a_kw}" if a_kw else "")
         ),
         _bullet(
-            f"Intention (Month {month}): "
+            f"Intention (Day {day}): "
             f"{intention['number']} = {intention['name']}"
             + (f" — {i_kw}" if i_kw else "")
         ),
         _bullet(
-            f"Purpose (Year {year}): "
+            f"Purpose (Month {month} + Day {day} = {month+day}): "
             f"{purpose['number']} = {purpose['name']}"
             + (f" — {p_kw}" if p_kw else "")
+        ),
+        _bullet(
+            f"Year Arc ({year}): "
+            f"{year_rec['number']} = {year_rec['name']}"
+            + (f" — {y_kw}" if y_kw else "")
         ),
         _divider(),
         _h2("🌙 Moon Phase"),

@@ -48,10 +48,11 @@ def print_reading(reading: dict) -> None:
     weekday = date.strftime("%A")
     title   = date.strftime("%B %-d, %Y")
 
-    att = reading["attention"]
-    itn = reading["intention"]
-    pur = reading["purpose"]
-    cph = reading["cipher"]
+    att  = reading["attention"]
+    itn  = reading["intention"]
+    pur  = reading["purpose"]
+    yr   = reading["year"]
+    cph  = reading["cipher"]
     moon = reading["moon"]
 
     print(f"\n{BAR}")
@@ -71,18 +72,21 @@ def print_reading(reading: dict) -> None:
     print(f"     Component Decode:")
 
     def _decode_line(label: str, source: str, n: int, name: str) -> str:
-        return f"  {label:<22}  {source:<14}  {n} = {name}"
+        return f"  {label:<22}  {source:<20}  {n} = {name}"
 
-    day_src   = f"Day {date.day} → {reduce(date.day)}"
     month_src = f"Month {date.month} → {reduce(date.month)}"
+    day_src   = f"Day {date.day} → {reduce(date.day)}"
+    born_src  = f"M{date.month}+D{date.day} → {reduce(date.month+date.day)}"
     year_src  = f"Year {date.year} → {reduce(date.year)}"
 
     print("    " + _decode_line(
-        reading["reading_labels"]["attention"], day_src,   att["number"], att["name"]))
+        reading["reading_labels"]["attention"], month_src, att["number"], att["name"]))
     print("    " + _decode_line(
-        reading["reading_labels"]["intention"], month_src, itn["number"], itn["name"]))
+        reading["reading_labels"]["intention"], day_src,   itn["number"], itn["name"]))
     print("    " + _decode_line(
-        reading["reading_labels"]["purpose"],   year_src,  pur["number"], pur["name"]))
+        reading["reading_labels"]["purpose"],   born_src,  pur["number"], pur["name"]))
+    print("    " + _decode_line(
+        "Year Arc",                             year_src,  yr["number"],  yr["name"]))
 
     # ── Instructions ─────────────────────────────────────────────────────────
     print(f"\n  {BAR[:WIDTH//2]}")
@@ -90,6 +94,7 @@ def print_reading(reading: dict) -> None:
         ("attention", att),
         ("intention", itn),
         ("purpose",   pur),
+        ("year_arc",  yr),
     ):
         label = reading["reading_labels"][label_key]
         print(f"\n  {label}  ·  {rec['number']} – {rec['name']}")
@@ -153,6 +158,7 @@ def main() -> None:
         "intention": lex.label_intention,
         "purpose":   lex.label_purpose,
         "cipher":    lex.label_cipher,
+        "year_arc":  "Year Arc",
     }
 
     if args.json:
