@@ -38,6 +38,8 @@ except ImportError:
         "  pip install requests beautifulsoup4"
     )
 
+import notion
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 BASE_URL  = "https://www.etymonline.com"
@@ -357,6 +359,53 @@ def print_explore(explored):
     print()
 
 
+# ── Notion helpers ───────────────────────────────────────────────────────────
+
+def _notion_save_entries(entries):
+    """Save a flat list of entry dicts to Notion; prints status."""
+    try:
+        n = notion.save_entries(entries)
+        print(f"  [notion] Saved {n} entr{'y' if n == 1 else 'ies'} to Notion.")
+    except (EnvironmentError, requests.HTTPError) as exc:
+        print(f"  [notion] Warning: could not save to Notion — {exc}", file=sys.stderr)
+
+
+def _notion_save_lookup(result):
+    """Save a single lookup result (word + its entries) to Notion."""
+    word    = (result.get("word") or "").replace("  [cached]", "").strip()
+    entries = result.get("entries", [])
+    related = result.get("related", [])
+    if not entries:
+        print("  [notion] Nothing to save (no entries).", file=sys.stderr)
+        return
+    # Merge all entry etymologies under the word's canonical name.
+    combined = " | ".join(
+        e.get("etymology", "") for e in entries if e.get("etymology")
+    )
+    try:
+        notion.save_entry(word, combined, related=related)
+        print(f"  [notion] Saved '{word}' to Notion.")
+    except (EnvironmentError, requests.HTTPError) as exc:
+        print(f"  [notion] Warning: could not save to Notion — {exc}", file=sys.stderr)
+
+
+def _notion_save_explore(explored):
+    """Save every word in an explore result to Notion."""
+    saved = 0
+    try:
+        for word, result in explored.items():
+            entries = result.get("entries", [])
+            related = result.get("related", [])
+            combined = " | ".join(
+                e.get("etymology", "") for e in entries if e.get("etymology")
+            )
+            notion.save_entry(word, combined, related=related)
+            saved += 1
+        print(f"  [notion] Saved {saved} word{'s' if saved != 1 else ''} to Notion.")
+    except (EnvironmentError, requests.HTTPError) as exc:
+        print(f"  [notion] Warning: could not save to Notion — {exc}", file=sys.stderr)
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 def build_parser():
@@ -372,6 +421,9 @@ def build_parser():
                    help="Output raw JSON")
     p.add_argument("--no-cache", action="store_true", dest="no_cache",
                    help="Skip cache; always fetch fresh")
+    p.add_argument("--notion",   action="store_true",
+                   help="Save results to Notion (requires NOTION_TOKEN and "
+                        "NOTION_DATABASE_ID env vars)")
 
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -412,6 +464,8 @@ def main():
                 if from_cache:
                     lbl += "  [cached]"
                 print_entries(results, lbl)
+            if args.notion:
+                _notion_save_entries(results)
 
         elif args.cmd == "look":
             result, from_cache = lookup(args.word, offline=args.offline,
@@ -424,6 +478,8 @@ def main():
                 if from_cache:
                     result = dict(result, word=result["word"] + "  [cached]")
                 print_lookup(result)
+            if args.notion:
+                _notion_save_lookup(result)
 
         elif args.cmd == "explore":
             explored = explore(args.word, depth=args.depth,
@@ -432,6 +488,8 @@ def main():
                 print(json.dumps(explored, indent=2))
             else:
                 print_explore(explored)
+            if args.notion:
+                _notion_save_explore(explored)
 
         elif args.cmd == "cache":
             if args.clear:
