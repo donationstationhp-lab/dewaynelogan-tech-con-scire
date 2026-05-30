@@ -1,0 +1,78 @@
+{
+  "_comment": "The user's own cipher — editable. Calculation and address logic are sealed in code; this lexicon is the translation layer. Edit any field freely; the engine re-reads at runtime.",
+  "positions": {
+    "0": {
+      "name": "Completion",
+      "pie_root": "com-plēre — to fill together",
+      "verb": "",
+      "say": "Fill and seal. Hand the full coil to its next source."
+    },
+    "1": {
+      "name": "Knowledge",
+      "pie_root": "*ǵneh₃-* — to know",
+      "verb": "gained",
+      "say": "Track the trail. Attend to what can be learned."
+    },
+    "2": {
+      "name": "Wisdom",
+      "pie_root": "*weid-* — to see",
+      "verb": "",
+      "say": "Let seeing become the means; act on what was shown."
+    },
+    "3": {
+      "name": "Understanding",
+      "pie_root": "*(inter/under)-stā-* — to stand between",
+      "verb": "",
+      "say": "Stand on the common ground beneath the two."
+    },
+    "4": {
+      "name": "Cultured Freedom",
+      "pie_root": "*kʷel-* — to turn, to till",
+      "verb": "",
+      "say": "Work the freedom. Till it; it is freedom only once made."
+    },
+    "5": {
+      "name": "Powered Refinement",
+      "pie_root": "re- + finis — back to the fine",
+      "verb": "",
+      "say": "Refine by force held steady; bring it back to fineness."
+    },
+    "6": {
+      "name": "Equality",
+      "pie_root": "*aequus* — level, even",
+      "verb": "",
+      "say": "Bring the distinct to par. Pair without flattening."
+    },
+    "7": {
+      "name": "Consciousness",
+      "pie_root": "com-scīre — to know-with",
+      "verb": "given",
+      "say": "Know with another. This seat is given, not gotten."
+    },
+    "8": {
+      "name": "Build / Destroy",
+      "pie_root": "de-struere — to un-pile",
+      "verb": "",
+      "say": "Tear down what was piled wrong; raise it true."
+    },
+    "9": {
+      "name": "Birth",
+      "pie_root": "*bʰer-* — to bear, to carry",
+      "verb": "",
+      "say": "Bear it forth. Carry the made thing into being."
+    }
+  },
+  "reading_labels": {
+    "attention": "Attention",
+    "attention_op": "Calculate",
+    "attention_prep": "of",
+    "intention": "Intention",
+    "intention_op": "Decode",
+    "intention_prep": "by",
+    "purpose": "Purpose",
+    "purpose_op": "Translate",
+    "purpose_prep": "through",
+    "convergence": "Convergence",
+    "cipher": "Date Vibration"
+  }
+}

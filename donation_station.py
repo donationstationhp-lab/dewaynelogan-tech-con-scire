@@ -1,0 +1,390 @@
+#!/usr/bin/env python3
+"""donation_station.py — Donation Station lifecycle management system.
+
+Every donated item moves through four stages in order:
+  1. intake      — item is received and logged
+  2. qc          — item is inspected for quality; maintenance flagged if needed
+  3. storage     — item is assigned a location in inventory
+  4. distributed — item is sent to its recipient
+
+Each stage is recorded with a timestamp, operator, and notes.
+The full history of every item is preserved.
+
+Usage:
+  python donation_station.py intake "Winter Jacket" --category clothing --condition good --donor "Jane Smith"
+  python donation_station.py process DS-0001 --pass --by "Staff" --notes "Clean, no repairs needed"
+  python donation_station.py process DS-0001 --fail --maintenance "Needs zipper repair"
+  python donation_station.py store DS-0001 B-3 --notes "Shelf 3, bin 2"
+  python donation_station.py distribute DS-0001 "Community Center" --notes "Delivered Tuesday"
+
+  python donation_station.py status DS-0001
+  python donation_station.py list
+  python donation_station.py list --stage qc
+  python donation_station.py report
+"""
+
+import argparse
+import json
+import os
+import sys
+from datetime import datetime, timezone
+
+# ── Storage ───────────────────────────────────────────────────────────────────
+
+DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                         ".donation_station_data.json")
+
+STAGES    = ("intake", "qc", "storage", "distributed")
+CONDITIONS = ("good", "fair", "poor")
+WIDTH     = 70
+BAR       = "─" * WIDTH
+
+
+def _now():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _load():
+    if os.path.exists(DATA_FILE):
+        with open(DATA_FILE) as f:
+            return json.load(f)
+    return {"next_id": 1, "items": {}}
+
+
+def _save(db):
+    with open(DATA_FILE, "w") as f:
+        json.dump(db, f, indent=2)
+
+
+def _next_id(db):
+    n  = db["next_id"]
+    db["next_id"] += 1
+    return f"DS-{n:04d}"
+
+
+# ── Core operations ───────────────────────────────────────────────────────────
+
+def intake(name, category="general", condition="good", donor="", notes="", by=""):
+    db   = _load()
+    item_id = _next_id(db)
+    item = {
+        "id":        item_id,
+        "name":      name,
+        "category":  category,
+        "condition": condition,
+        "donor":     donor,
+        "stage":     "intake",
+        "history":   [
+            {
+                "stage":     "intake",
+                "timestamp": _now(),
+                "by":        by,
+                "notes":     notes,
+            }
+        ],
+    }
+    db["items"][item_id] = item
+    _save(db)
+    return item
+
+
+def process_qc(item_id, passed, by="", notes="", maintenance=""):
+    db   = _load()
+    item = _get_item(db, item_id)
+    if item["stage"] != "intake":
+        raise ValueError(f"{item_id} is at stage '{item['stage']}', expected 'intake'.")
+    event = {
+        "stage":        "qc",
+        "timestamp":    _now(),
+        "by":           by,
+        "passed":       passed,
+        "notes":        notes,
+        "maintenance":  maintenance,
+    }
+    item["history"].append(event)
+    item["stage"] = "qc"
+    if not passed:
+        item["maintenance_needed"] = maintenance or "unspecified"
+    _save(db)
+    return item
+
+
+def store(item_id, location, by="", notes=""):
+    db   = _load()
+    item = _get_item(db, item_id)
+    if item["stage"] != "qc":
+        raise ValueError(f"{item_id} is at stage '{item['stage']}', expected 'qc'.")
+    qc_event = next((e for e in reversed(item["history"]) if e["stage"] == "qc"), None)
+    if qc_event and not qc_event.get("passed", True):
+        raise ValueError(f"{item_id} did not pass QC. Complete maintenance before storing.")
+    event = {
+        "stage":     "storage",
+        "timestamp": _now(),
+        "location":  location,
+        "by":        by,
+        "notes":     notes,
+    }
+    item["history"].append(event)
+    item["stage"]    = "storage"
+    item["location"] = location
+    _save(db)
+    return item
+
+
+def distribute(item_id, recipient, by="", notes=""):
+    db   = _load()
+    item = _get_item(db, item_id)
+    if item["stage"] != "storage":
+        raise ValueError(f"{item_id} is at stage '{item['stage']}', expected 'storage'.")
+    event = {
+        "stage":     "distributed",
+        "timestamp": _now(),
+        "recipient": recipient,
+        "by":        by,
+        "notes":     notes,
+    }
+    item["history"].append(event)
+    item["stage"]     = "distributed"
+    item["recipient"] = recipient
+    _save(db)
+    return item
+
+
+def get_status(item_id):
+    db = _load()
+    return _get_item(db, item_id)
+
+
+def list_items(stage=None):
+    db = _load()
+    items = list(db["items"].values())
+    if stage and stage != "all":
+        items = [i for i in items if i["stage"] == stage]
+    return items
+
+
+def report():
+    db    = _load()
+    items = list(db["items"].values())
+    total = len(items)
+    by_stage = {s: 0 for s in STAGES}
+    by_category = {}
+    maintenance_pending = 0
+    for item in items:
+        by_stage[item["stage"]] = by_stage.get(item["stage"], 0) + 1
+        cat = item.get("category", "general")
+        by_category[cat] = by_category.get(cat, 0) + 1
+        if item.get("maintenance_needed") and item["stage"] != "distributed":
+            maintenance_pending += 1
+    return {
+        "total":               total,
+        "by_stage":            by_stage,
+        "by_category":         by_category,
+        "maintenance_pending": maintenance_pending,
+    }
+
+
+def _get_item(db, item_id):
+    item = db["items"].get(item_id)
+    if not item:
+        raise KeyError(f"Item '{item_id}' not found.")
+    return item
+
+
+# ── Output ────────────────────────────────────────────────────────────────────
+
+STAGE_LABELS = {
+    "intake":      "INTAKE",
+    "qc":          "QUALITY CONTROL",
+    "storage":     "STORAGE",
+    "distributed": "DISTRIBUTED",
+}
+
+STAGE_ICONS = {
+    "intake":      "[1]",
+    "qc":          "[2]",
+    "storage":     "[3]",
+    "distributed": "[4]",
+}
+
+
+def _fmt_event(event):
+    s     = event["stage"]
+    ts    = event.get("timestamp", "")[:16].replace("T", "  ")
+    label = STAGE_LABELS.get(s, s.upper())
+    icon  = STAGE_ICONS.get(s, "   ")
+    lines = [f"  {icon}  {label}  —  {ts}"]
+    if event.get("by"):
+        lines.append(f"       By: {event['by']}")
+    if s == "qc":
+        result = "PASSED" if event.get("passed") else "FAILED"
+        lines.append(f"       Result: {result}")
+        if event.get("maintenance"):
+            lines.append(f"       Maintenance: {event['maintenance']}")
+    if s == "storage":
+        lines.append(f"       Location: {event.get('location', '')}")
+    if s == "distributed":
+        lines.append(f"       Recipient: {event.get('recipient', '')}")
+    if event.get("notes"):
+        lines.append(f"       Notes: {event['notes']}")
+    return "\n".join(lines)
+
+
+def print_item(item, header="ITEM"):
+    print(f"\n{BAR}")
+    print(f"  {header}  —  {item['id']}  |  {item['name']}")
+    print(f"  Category: {item['category']}  |  Condition: {item['condition']}"
+          + (f"  |  Donor: {item['donor']}" if item.get('donor') else ""))
+    print(f"  Current Stage: {STAGE_LABELS.get(item['stage'], item['stage'].upper())}")
+    if item.get("location"):
+        print(f"  Location: {item['location']}")
+    if item.get("maintenance_needed"):
+        print(f"  Maintenance: {item['maintenance_needed']}")
+    print(BAR)
+    print()
+    for event in item["history"]:
+        print(_fmt_event(event))
+        print()
+
+
+def print_list(items):
+    if not items:
+        print("  No items found.")
+        return
+    print(f"\n{BAR}")
+    print(f"  {'ID':<10}  {'NAME':<24}  {'STAGE':<14}  {'CATEGORY'}")
+    print(BAR)
+    for item in items:
+        stage = STAGE_LABELS.get(item["stage"], item["stage"])[:13]
+        print(f"  {item['id']:<10}  {item['name'][:24]:<24}  {stage:<14}  {item.get('category','')}")
+    print()
+
+
+def print_report(r):
+    print(f"\n{BAR}")
+    print(f"  DONATION STATION  —  REPORT")
+    print(BAR)
+    print(f"\n  Total items:  {r['total']}")
+    print(f"\n  By Stage:")
+    for stage in STAGES:
+        count = r["by_stage"].get(stage, 0)
+        bar   = "█" * count
+        print(f"    {STAGE_LABELS[stage]:<16}  {count:>4}  {bar}")
+    if r["by_category"]:
+        print(f"\n  By Category:")
+        for cat, count in sorted(r["by_category"].items(), key=lambda x: -x[1]):
+            print(f"    {cat:<20}  {count}")
+    if r["maintenance_pending"]:
+        print(f"\n  Maintenance pending:  {r['maintenance_pending']}")
+    print()
+
+
+# ── CLI ───────────────────────────────────────────────────────────────────────
+
+def main():
+    argv = sys.argv[1:]
+    use_json = "--json" in argv
+    if use_json:
+        argv = [a for a in argv if a != "--json"]
+
+    if not argv:
+        print(__doc__)
+        return
+
+    cmd  = argv[0]
+    rest = argv[1:]
+
+    try:
+        if cmd == "intake":
+            p = argparse.ArgumentParser(prog="donation_station intake")
+            p.add_argument("name")
+            p.add_argument("--category",  default="general")
+            p.add_argument("--condition", default="good", choices=CONDITIONS)
+            p.add_argument("--donor",     default="")
+            p.add_argument("--notes",     default="")
+            p.add_argument("--by",        default="")
+            a    = p.parse_args(rest)
+            item = intake(a.name, a.category, a.condition, a.donor, a.notes, a.by)
+            if use_json:
+                print(json.dumps(item, indent=2))
+            else:
+                print_item(item, "INTAKE RECEIVED")
+
+        elif cmd == "process":
+            p = argparse.ArgumentParser(prog="donation_station process")
+            p.add_argument("item_id")
+            grp = p.add_mutually_exclusive_group(required=True)
+            grp.add_argument("--pass",  dest="passed", action="store_true")
+            grp.add_argument("--fail",  dest="passed", action="store_false")
+            p.add_argument("--by",          default="")
+            p.add_argument("--notes",       default="")
+            p.add_argument("--maintenance", default="")
+            a    = p.parse_args(rest)
+            item = process_qc(a.item_id, a.passed, a.by, a.notes, a.maintenance)
+            if use_json:
+                print(json.dumps(item, indent=2))
+            else:
+                print_item(item, "QC PROCESSED")
+
+        elif cmd == "store":
+            p = argparse.ArgumentParser(prog="donation_station store")
+            p.add_argument("item_id")
+            p.add_argument("location")
+            p.add_argument("--by",    default="")
+            p.add_argument("--notes", default="")
+            a    = p.parse_args(rest)
+            item = store(a.item_id, a.location, a.by, a.notes)
+            if use_json:
+                print(json.dumps(item, indent=2))
+            else:
+                print_item(item, "STORED")
+
+        elif cmd == "distribute":
+            p = argparse.ArgumentParser(prog="donation_station distribute")
+            p.add_argument("item_id")
+            p.add_argument("recipient")
+            p.add_argument("--by",    default="")
+            p.add_argument("--notes", default="")
+            a    = p.parse_args(rest)
+            item = distribute(a.item_id, a.recipient, a.by, a.notes)
+            if use_json:
+                print(json.dumps(item, indent=2))
+            else:
+                print_item(item, "DISTRIBUTED")
+
+        elif cmd == "status":
+            if not rest:
+                sys.exit("Usage: donation_station.py status <item-id>")
+            item = get_status(rest[0])
+            if use_json:
+                print(json.dumps(item, indent=2))
+            else:
+                print_item(item, "STATUS")
+
+        elif cmd == "list":
+            p = argparse.ArgumentParser(prog="donation_station list")
+            p.add_argument("--stage", default="all",
+                           choices=list(STAGES) + ["all"])
+            a     = p.parse_args(rest)
+            items = list_items(a.stage)
+            if use_json:
+                print(json.dumps(items, indent=2))
+            else:
+                print_list(items)
+
+        elif cmd == "report":
+            r = report()
+            if use_json:
+                print(json.dumps(r, indent=2))
+            else:
+                print_report(r)
+
+        else:
+            sys.exit(f"Unknown command '{cmd}'. Run without arguments for usage.")
+
+    except (KeyError, ValueError) as exc:
+        sys.exit(str(exc))
+
+
+if __name__ == "__main__":
+    main()
