@@ -253,5 +253,80 @@ class TestExplore(unittest.TestCase):
         mock_fetch.assert_called_once()
 
 
+# ── Tests: DKL_LOOP ───────────────────────────────────────────────────────────
+
+class TestDKLLoop(unittest.TestCase):
+    def setUp(self):
+        self._orig_cache_dir = ety.CACHE_DIR
+        self._tmpdir = tempfile.mkdtemp()
+        ety.CACHE_DIR = self._tmpdir
+
+    def tearDown(self):
+        ety.CACHE_DIR = self._orig_cache_dir
+        import shutil
+        shutil.rmtree(self._tmpdir, ignore_errors=True)
+
+    @patch("etymonline.fetch", return_value=HTML_WORD_PAGE)
+    def test_loop_b_returns_seven_steps(self, _mock):
+        steps, _ = ety.run_dkl_loop("robot", variant="b")
+        self.assertEqual(len(steps), 7)
+
+    @patch("etymonline.fetch", return_value=HTML_WORD_PAGE)
+    def test_loop_a_returns_seven_steps(self, _mock):
+        steps, _ = ety.run_dkl_loop("robot", variant="a")
+        self.assertEqual(len(steps), 7)
+
+    @patch("etymonline.fetch", return_value=HTML_WORD_PAGE)
+    def test_loop_b_step3_is_leading(self, _mock):
+        steps, _ = ety.run_dkl_loop("robot", variant="b")
+        letter, name, root, body = steps[2]
+        self.assertEqual(letter, "L")
+        self.assertEqual(name, "LEADING")
+
+    @patch("etymonline.fetch", return_value=HTML_WORD_PAGE)
+    def test_loop_a_step3_is_equality(self, _mock):
+        steps, _ = ety.run_dkl_loop("robot", variant="a")
+        letter, name, root, body = steps[2]
+        self.assertEqual(letter, "E")
+        self.assertEqual(name, "EQUALITY")
+
+    @patch("etymonline.fetch", return_value=HTML_WORD_PAGE)
+    def test_loop_step1_depth_contains_etymology(self, _mock):
+        steps, _ = ety.run_dkl_loop("robot", variant="b")
+        _, _, _, body = steps[0]
+        self.assertIn("Czech", body)
+
+    @patch("etymonline.fetch", return_value=HTML_WORD_PAGE)
+    def test_loop_a_equality_lists_distinct_senses(self, _mock):
+        steps, _ = ety.run_dkl_loop("robot", variant="a")
+        _, _, _, body = steps[2]
+        # robot (n.) and robot (adj.) are two distinct senses — must not collapse
+        self.assertIn("robot (n.)", body)
+        self.assertIn("robot (adj.)", body)
+        self.assertIn("not interchangeable", body)
+
+    @patch("etymonline.fetch", return_value=HTML_WORD_PAGE)
+    def test_loop_b_leading_lists_related(self, _mock):
+        steps, _ = ety.run_dkl_loop("robot", variant="b")
+        _, _, _, body = steps[2]
+        # HTML_WORD_PAGE has links to automaton and android
+        self.assertIn("automaton", body)
+
+    @patch("etymonline.fetch", return_value=HTML_WORD_PAGE)
+    def test_loop_step7_container_is_cache_path(self, _mock):
+        steps, _ = ety.run_dkl_loop("robot", variant="b")
+        _, _, _, body = steps[6]
+        self.assertIn(self._tmpdir, body)
+
+    @patch("etymonline.fetch", return_value=HTML_WORD_PAGE)
+    def test_loop_json_output(self, _mock):
+        steps, _ = ety.run_dkl_loop("robot", variant="b")
+        data = [{"step": l, "name": n, "root": r, "body": b}
+                for l, n, r, b in steps]
+        parsed = json.loads(json.dumps(data, indent=2))
+        self.assertEqual(len(parsed), 7)
+        self.assertEqual(parsed[0]["step"], "D")
+
+
 if __name__ == "__main__":
     unittest.main()
