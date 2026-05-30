@@ -26,70 +26,164 @@ class TestComputeDaily(unittest.TestCase):
     def test_required_keys_present(self):
         r = _r("2026-02-07")
         for key in ("date", "time", "attention", "intention", "purpose",
-                    "convergence", "year_arc", "address", "moon",
-                    "calculation", "onion_instruction", "methods"):
+                    "secondary", "year_arc", "address", "moon",
+                    "calculation", "methods", "sources"):
             self.assertIn(key, r, f"Missing key: {key}")
 
-    def test_each_seat_has_number_and_name(self):
+    def test_each_primary_seat_has_number_and_name(self):
         r = _r("2026-02-07")
-        for slot in ("attention", "intention", "purpose", "convergence", "year_arc"):
+        for slot in ("attention", "intention", "purpose"):
             self.assertIn("number", r[slot], slot)
             self.assertIn("name",   r[slot], slot)
 
-    # ── Attention = method_b(date) ────────────────────────────────────────────
+    # ── Primary Attention = month ─────────────────────────────────────────────
 
-    def test_attention_is_method_b(self):
+    def test_attention_raw_is_month(self):
+        r = _r("2026-02-07")   # month=2
+        self.assertEqual(r["attention"]["raw"], 2)
+
+    def test_attention_position_is_reduced_month(self):
         r = _r("2026-02-07")
-        self.assertEqual(r["attention"]["number"], method_b(datetime.date(2026, 2, 7)))
+        self.assertEqual(r["attention"]["number"], reduce(2))
 
-    def test_attention_feb7_2026(self):
-        # "20260207" → 19 → 1
-        r = _r("2026-02-07")
-        self.assertEqual(r["attention"]["number"], 1)
+    def test_attention_may(self):
+        r = _r("2026-05-29")   # month=5 → reduce(5)=5
+        self.assertEqual(r["attention"]["raw"], 5)
+        self.assertEqual(r["attention"]["number"], 5)
 
-    def test_attention_may29_2026(self):
-        # "20260529" → 26 → 8
+    def test_attention_verb_received(self):
         r = _r("2026-05-29")
-        self.assertEqual(r["attention"]["number"], 8)
+        self.assertEqual(r["attention"]["verb"], "Received")
 
-    # ── Intention = reduce(12-hour clock) ────────────────────────────────────
+    def test_attention_prep_of(self):
+        r = _r("2026-05-29")
+        self.assertEqual(r["attention"]["prep"], "of")
 
-    def test_intention_at_9am(self):
-        r = _r("2026-02-07", hour=9)
-        self.assertEqual(r["intention"]["number"], 9)
+    def test_attention_liturgy_contains_month_name(self):
+        r = _r("2026-05-29")
+        self.assertIn("Received Attention of", r["attention"]["liturgy"])
+        self.assertIn("May", r["attention"]["liturgy"])
+        self.assertIn("5", r["attention"]["liturgy"])
 
-    def test_intention_at_1pm_is_1(self):
-        # 13 % 12 = 1
-        r = _r("2026-02-07", hour=13)
-        self.assertEqual(r["intention"]["number"], 1)
+    # ── Primary Intention = day (raw, unreduced) ──────────────────────────────
 
-    def test_intention_at_noon_is_12_reduced(self):
-        # hour=12, h12 = (12 % 12) or 12 = 12, reduce(12) = 3
-        r = _r("2026-02-07", hour=12)
-        self.assertEqual(r["intention"]["number"], reduce(12))
-        self.assertEqual(r["intention"]["number"], 3)
+    def test_intention_raw_is_day(self):
+        r = _r("2026-05-29")   # day=29
+        self.assertEqual(r["intention"]["raw"], 29)
 
-    def test_intention_at_midnight_is_12_reduced(self):
-        # hour=0, h12 = (0 % 12) or 12 = 12, reduce(12) = 3
-        r = _r("2026-02-07", hour=0)
-        self.assertEqual(r["intention"]["number"], 3)
+    def test_intention_position_is_reduced_day(self):
+        r = _r("2026-05-29")
+        self.assertEqual(r["intention"]["number"], reduce(29))  # 2+9=11→2 → 2
 
-    # ── Purpose = reduce(attention + intention) ───────────────────────────────
+    def test_intention_compound_when_day_multi_digit(self):
+        r = _r("2026-05-29")   # day=29, reduce(29)=2 — compound
+        self.assertTrue(r["intention"]["compound"])
 
-    def test_purpose_formula(self):
-        r = _r("2026-02-07", hour=9)
-        att = r["attention"]["number"]
-        itn = r["intention"]["number"]
-        self.assertEqual(r["purpose"]["number"], reduce(att + itn))
+    def test_intention_not_compound_for_single_digit_day(self):
+        r = _r("2026-02-07")   # day=7, reduce(7)=7 — not compound
+        self.assertFalse(r["intention"]["compound"])
 
-    # ── Convergence = reduce(A + I + P) ──────────────────────────────────────
+    def test_intention_verb_gained(self):
+        r = _r("2026-05-29")
+        self.assertEqual(r["intention"]["verb"], "Gained")
 
-    def test_convergence_formula(self):
+    def test_intention_prep_by(self):
+        r = _r("2026-05-29")
+        self.assertEqual(r["intention"]["prep"], "by")
+
+    def test_intention_liturgy_contains_day(self):
+        r = _r("2026-05-29")
+        self.assertIn("Gained Intention by", r["intention"]["liturgy"])
+        self.assertIn("29", r["intention"]["liturgy"])
+
+    # ── Primary Purpose = month + day UNREDUCED ───────────────────────────────
+
+    def test_purpose_raw_is_unreduced_sum(self):
+        r = _r("2026-05-29")   # 5 + 29 = 34 (not reduced)
+        self.assertEqual(r["purpose"]["raw"], 34)
+
+    def test_purpose_position_is_reduced_sum(self):
+        r = _r("2026-05-29")
+        self.assertEqual(r["purpose"]["number"], reduce(34))  # 3+4=7
+
+    def test_purpose_compound_when_sum_multi_digit(self):
+        r = _r("2026-05-29")   # 34 != 7 — compound
+        self.assertTrue(r["purpose"]["compound"])
+
+    def test_purpose_not_compound_when_sum_single_digit(self):
+        r = _r("2026-01-01")   # 1+1=2, reduce(2)=2 — not compound
+        self.assertFalse(r["purpose"]["compound"])
+
+    def test_purpose_verb_given(self):
+        r = _r("2026-05-29")
+        self.assertEqual(r["purpose"]["verb"], "Given")
+
+    def test_purpose_prep_through(self):
+        r = _r("2026-05-29")
+        self.assertEqual(r["purpose"]["prep"], "through")
+
+    def test_purpose_liturgy_format(self):
+        r = _r("2026-05-29")   # 5 + 29 = 34
+        liturgy = r["purpose"]["liturgy"]
+        self.assertIn("Given Purpose through all being born to", liturgy)
+        self.assertIn("5", liturgy)
+        self.assertIn("29", liturgy)
+        self.assertIn("34", liturgy)
+
+    def test_purpose_carries_month_and_day(self):
+        r = _r("2026-05-29")
+        self.assertEqual(r["purpose"]["month"], 5)
+        self.assertEqual(r["purpose"]["day"],   29)
+
+    # ── Secondary lens ────────────────────────────────────────────────────────
+
+    def test_secondary_present(self):
+        r = _r("2026-05-29")
+        self.assertIn("secondary", r)
+        for key in ("hour", "attention", "purpose", "convergence"):
+            self.assertIn(key, r["secondary"])
+
+    def test_secondary_attention_is_method_b(self):
+        r = _r("2026-05-29")
+        self.assertEqual(
+            r["secondary"]["attention"]["number"],
+            method_b(datetime.date(2026, 5, 29)),
+        )
+
+    def test_secondary_h12_at_1pm(self):
+        r = _r("2026-05-29", hour=13)
+        self.assertEqual(r["secondary"]["hour"]["h12"], 1)
+        self.assertEqual(r["secondary"]["hour"]["number"], reduce(1))
+
+    def test_secondary_h12_at_midnight_is_12_reduced(self):
+        # hour=0, h12 = (0%12) or 12 = 12, reduce(12)=3
+        r = _r("2026-05-29", hour=0)
+        self.assertEqual(r["secondary"]["hour"]["h12"], 12)
+        self.assertEqual(r["secondary"]["hour"]["number"], reduce(12))
+
+    def test_secondary_h12_at_noon_is_12_reduced(self):
+        # hour=12, h12 = (12%12) or 12 = 12, reduce(12)=3
+        r = _r("2026-05-29", hour=12)
+        self.assertEqual(r["secondary"]["hour"]["h12"], 12)
+        self.assertEqual(r["secondary"]["hour"]["number"], 3)
+
+    def test_secondary_convergence_formula(self):
         r = _r("2026-05-29", hour=10)
-        att  = r["attention"]["number"]
-        itn  = r["intention"]["number"]
-        pur  = r["purpose"]["number"]
-        self.assertEqual(r["convergence"]["number"], reduce(att + itn + pur))
+        s = r["secondary"]
+        mb   = s["attention"]["number"]
+        h    = s["hour"]["number"]
+        pur  = s["purpose"]["number"]
+        self.assertEqual(s["convergence"]["number"], reduce(mb + h + pur))
+
+    def test_secondary_aligned_when_convergence_6(self):
+        # Find a day + hour where convergence = 6
+        # date=2026-02-07 → method_b=1; h12=13%12=1→reduce(1)=1
+        # pur=reduce(1+1)=2; conv=reduce(1+1+2)=4 → not aligned
+        # Just verify the flag is correct (bool)
+        r = _r("2026-05-29", hour=9)
+        s = r["secondary"]
+        self.assertIsInstance(s["convergence"]["aligned"], bool)
+        self.assertEqual(s["convergence"]["aligned"], s["convergence"]["number"] == 6)
 
     # ── Address (Method A) ────────────────────────────────────────────────────
 
@@ -100,9 +194,17 @@ class TestComputeDaily(unittest.TestCase):
 
     def test_methods_dict(self):
         r = _r("2026-05-29")
-        self.assertIsInstance(r["methods"]["a"], str)  # address string "Y·M·W·D"
+        self.assertIsInstance(r["methods"]["a"], str)
         self.assertIsInstance(r["methods"]["b"], int)
         self.assertIsInstance(r["methods"]["c"], int)
+
+    def test_methods_b_equals_method_b(self):
+        r = _r("2026-05-29")
+        self.assertEqual(r["methods"]["b"], method_b(datetime.date(2026, 5, 29)))
+
+    def test_methods_c_equals_method_c(self):
+        r = _r("2026-05-29")
+        self.assertEqual(r["methods"]["c"], method_c(datetime.date(2026, 5, 29)))
 
     # ── Year arc ──────────────────────────────────────────────────────────────
 
@@ -124,7 +226,19 @@ class TestComputeDaily(unittest.TestCase):
             self.assertGreaterEqual(r["moon"]["illumination_pct"], 0.0)
             self.assertLessEqual(r["moon"]["illumination_pct"], 100.0)
 
-    # ── Lexicon names match the artifact ─────────────────────────────────────
+    # ── Sources ───────────────────────────────────────────────────────────────
+
+    def test_sources_present(self):
+        r = _r("2026-05-29")
+        self.assertIn("fraction_calendar", r["sources"])
+        self.assertIn("lunar_thread", r["sources"])
+
+    def test_sources_have_notion_ids(self):
+        r = _r("2026-05-29")
+        self.assertIn("notion_id", r["sources"]["fraction_calendar"])
+        self.assertIn("notion_id", r["sources"]["lunar_thread"])
+
+    # ── Lexicon names match the sealed cipher ─────────────────────────────────
 
     def test_position_7_is_consciousness(self):
         self.assertEqual(_LEXICON.name(7), "Consciousness")
@@ -141,25 +255,32 @@ class TestComputeDaily(unittest.TestCase):
     def test_position_9_is_birth(self):
         self.assertEqual(_LEXICON.name(9), "Birth")
 
-    # ── Onion instruction ────────────────────────────────────────────────────
-
-    def test_onion_includes_attention_and_intention(self):
-        r = _r("2026-02-07", hour=9)
-        onion = r["onion_instruction"]
-        self.assertIn(r["attention"]["name"], onion)
-        self.assertIn(r["intention"]["name"], onion)
-
     # ── Date passthrough ──────────────────────────────────────────────────────
 
     def test_date_preserved(self):
         r = _r("2026-05-29")
         self.assertEqual(r["date"], "2026-05-29")
 
-    # ── Date-only input ───────────────────────────────────────────────────────
-
     def test_accepts_date_object(self):
         r = compute_daily(datetime.date(2026, 5, 29), _LEXICON)
         self.assertEqual(r["date"], "2026-05-29")
+
+    # ── Spot-check known reading (May 29, 2026) ───────────────────────────────
+
+    def test_may29_attention_is_may(self):
+        r = _r("2026-05-29")
+        self.assertEqual(r["attention"]["raw"], 5)
+        self.assertEqual(r["attention"]["number"], 5)  # reduce(5)=5
+
+    def test_may29_intention_is_29(self):
+        r = _r("2026-05-29")
+        self.assertEqual(r["intention"]["raw"], 29)
+        self.assertEqual(r["intention"]["number"], 2)  # reduce(29)=2+9=11→2
+
+    def test_may29_purpose_is_34(self):
+        r = _r("2026-05-29")
+        self.assertEqual(r["purpose"]["raw"], 34)      # 5+29 unreduced
+        self.assertEqual(r["purpose"]["number"], 7)    # reduce(34)=3+4=7
 
 
 class TestMoonPhase(unittest.TestCase):
@@ -179,6 +300,18 @@ class TestMoonPhase(unittest.TestCase):
         from suprememath.moon import moon_phase
         m = moon_phase(datetime.date(2026, 5, 29))
         self.assertIn("days_to_full", m)
+
+    def test_third_quarter_not_last_quarter(self):
+        from suprememath.moon import _PHASES
+        names = [name for _, name, _ in _PHASES]
+        self.assertIn("Third Quarter", names)
+        self.assertNotIn("Last Quarter", names)
+
+    def test_doctrinal_note_in_return(self):
+        from suprememath.moon import moon_phase
+        m = moon_phase(datetime.date(2026, 5, 29))
+        self.assertIn("note", m)
+        self.assertIn("synodic", m["note"])
 
 
 if __name__ == "__main__":

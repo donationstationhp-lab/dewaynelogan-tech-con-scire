@@ -6,7 +6,9 @@ Required env vars:
   NOTION_PARENT_ID    — ID of the parent page to write into
                         (defaults to the Daily Mathematics Journal page)
 
-The page format mirrors the hand-written daily entries already in the journal.
+Sources of record:
+  Fraction Calendar — Notion 46e0a67b-a3dd-494f-ac5c-1cec071123ca
+  Lunar Thread      — Notion 35603691-bd5e-81a3-a4d4-fa3b27ca0975
 """
 
 from __future__ import annotations
@@ -59,73 +61,106 @@ def _divider() -> dict:
 
 def _build_blocks(reading: dict[str, Any]) -> list[dict]:
     date_str  = reading["date"]
-    calc_str  = reading["calculation"]
-    cipher    = reading["cipher"]
     attention = reading["attention"]
     intention = reading["intention"]
     purpose   = reading["purpose"]
+    secondary = reading["secondary"]
+    year_arc  = reading["year_arc"]
     moon      = reading["moon"]
-    onion     = reading["onion_instruction"]
-    year      = datetime.date.fromisoformat(date_str).year
-    day       = datetime.date.fromisoformat(date_str).day
-    month     = datetime.date.fromisoformat(date_str).month
+    mths      = reading["methods"]
+    calc      = reading["calculation"]
+    srcs      = reading["sources"]
 
-    year_rec  = reading["year"]
-    a_kw = attention["key_words"][0] if attention.get("key_words") else ""
-    i_kw = intention["key_words"][0] if intention.get("key_words") else ""
-    p_kw = purpose["key_words"][0]   if purpose.get("key_words")   else ""
-    y_kw = year_rec["key_words"][0]  if year_rec.get("key_words")  else ""
+    date_obj  = datetime.date.fromisoformat(date_str)
+    year      = date_obj.year
+
+    sec_att  = secondary["attention"]
+    sec_h    = secondary["hour"]
+    sec_pur  = secondary["purpose"]
+    sec_conv = secondary["convergence"]
+
+    def _compound(seat: dict) -> str:
+        if seat.get("compound"):
+            return f"  [compound: {seat['raw']} → {seat['number']}]"
+        return ""
 
     return [
-        _h2("📊 Consciousness Calculation"),
-        _bullet(f"Full Date: {date_str}"),
-        _bullet(f"Calculation: {calc_str}"),
+        # ── Fraction Calendar (primary) ───────────────────────────────────────
+        _h2("Fraction Calendar  ·  Received · Gained · Given"),
+        _bullet(srcs["fraction_calendar"]["name"]),
+        _divider(),
+        _para(attention["liturgy"], bold=True),
         _bullet(
-            f"Date Vibration: {cipher['number']} = {cipher['name']}"
+            f"{attention['number']}  {attention['name']}"
+            + _compound(attention)
+        ),
+        _bullet(attention.get("pie_root", "")),
+        _para(intention["liturgy"], bold=True),
+        _bullet(
+            f"{intention['number']}  {intention['name']}"
+            + _compound(intention)
+        ),
+        _bullet(intention.get("pie_root", "")),
+        _para(purpose["liturgy"], bold=True),
+        _bullet(
+            f"{purpose['number']}  {purpose['name']}"
+            + _compound(purpose)
+        ),
+        _bullet(purpose.get("pie_root", "")),
+        _divider(),
+        # ── Secondary lens ────────────────────────────────────────────────────
+        _h2("Secondary Lens  ·  Method B + 12-hour clock"),
+        _bullet(f"Method A (address):  {mths['a']}"),
+        _bullet(f"Method B (YYYYMMDD): {mths['b']}  {sec_att['name']}"),
+        _bullet(f"Method C (M+D+Y):    {mths['c']}"),
+        _bullet(f"Cipher: {calc}"),
+        _bullet(
+            f"Hour → h12={sec_h['h12']}:  "
+            f"{sec_h['number']}  {sec_h['name']}"
+        ),
+        _bullet(
+            f"Cipher purpose:  "
+            f"{sec_pur['number']}  {sec_pur['name']}"
+        ),
+        _bullet(
+            f"Convergence:  "
+            f"{sec_conv['number']}  {sec_conv['name']}"
+            + ("  ← aligned" if sec_conv["aligned"] else "")
         ),
         _divider(),
-        _h2(f"🧅 Onion Instruction ({year})"),
-        _para(onion, bold=True),
-        _h3("Component Decode"),
-        _bullet(
-            f"Attention (Month {month}): "
-            f"{attention['number']} = {attention['name']}"
-            + (f" — {a_kw}" if a_kw else "")
-        ),
-        _bullet(
-            f"Intention (Day {day}): "
-            f"{intention['number']} = {intention['name']}"
-            + (f" — {i_kw}" if i_kw else "")
-        ),
-        _bullet(
-            f"Purpose (Month {month} + Day {day} = {month+day}): "
-            f"{purpose['number']} = {purpose['name']}"
-            + (f" — {p_kw}" if p_kw else "")
-        ),
-        _bullet(
-            f"Year Arc ({year}): "
-            f"{year_rec['number']} = {year_rec['name']}"
-            + (f" — {y_kw}" if y_kw else "")
-        ),
-        _divider(),
-        _h2("🌙 Moon Phase"),
+        # ── Moon ──────────────────────────────────────────────────────────────
+        _h2("Moon"),
         _bullet(
             f"{moon['emoji']} {moon['phase']} "
-            f"({moon['illumination_pct']}% illuminated)"
+            f"({moon['illumination_pct']}% illuminated, "
+            f"{round(moon['days_to_full'], 1)} days to full)"
+        ),
+        _bullet(moon.get("note", "")),
+        _divider(),
+        # ── Year arc ──────────────────────────────────────────────────────────
+        _h2(f"Year Arc  ·  {year}"),
+        _bullet(
+            f"{year_arc['number']}  {year_arc['name']} — {year_arc.get('pie_root', '')}"
         ),
         _divider(),
-        _h2("📌 Planner (Inked Commitments)"),
+        # ── Sources ───────────────────────────────────────────────────────────
+        _h2("Sources"),
+        _bullet(srcs["fraction_calendar"]["name"]),
+        _bullet(srcs["lunar_thread"]["name"]),
+        _divider(),
+        # ── Planner / Journal ─────────────────────────────────────────────────
+        _h2("Planner (Inked Commitments)"),
         _todo("1 clear priority for the day (what must be real by tonight?)"),
         _todo("1 call or message that creates alignment"),
         _todo("1 system clean-up or proof-of-work artifact"),
         _divider(),
-        _h2("📝 Reflections"),
+        _h2("Reflections"),
         _para(""),
-        _h2("🌱 Manifestations"),
+        _h2("Manifestations"),
         _para(""),
-        _h2("👁️ Observations"),
+        _h2("Observations"),
         _para(""),
-        _h2("📸 Daily Visual Documentation"),
+        _h2("Daily Visual Documentation"),
         _para(
             "Upload images of today's whiteboard + proof of what got completed."
         ),
@@ -152,7 +187,7 @@ def push(reading: dict[str, Any], token: str | None = None,
     token = token or os.environ.get("NOTION_TOKEN", "")
     if not token:
         raise EnvironmentError(
-            "No Notion token found. Set the NOTION_PARENT_ID env var or pass token=."
+            "No Notion token found. Set the NOTION_TOKEN env var or pass token=."
         )
 
     parent_id = (
@@ -161,7 +196,7 @@ def push(reading: dict[str, Any], token: str | None = None,
         or _DEFAULT_PARENT_ID
     )
 
-    date = datetime.date.fromisoformat(reading["date"])
+    date  = datetime.date.fromisoformat(reading["date"])
     title = date.strftime("%B %-d, %Y")  # e.g. "May 29, 2026"
 
     payload = {

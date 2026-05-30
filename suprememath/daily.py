@@ -1,18 +1,30 @@
 """
-Core reading engine — maps a datetime to Attention · Intention · Purpose.
+Core reading engine.
 
-  now  →  Calculate (Method B)   →  Attention   "of"
-       →  Decode (12-hour clock) →  Intention   "by"
-       →  Translate (A + I)      →  Purpose     "through"
-       →  Converge (A + I + P)   →  Resolution
+PRIMARY frame — Founder's Month/Day Fraction Calendar
+  (Notion 46e0a67b-a3dd-494f-ac5c-1cec071123ca):
 
-Attention  = method_b(date)          — the day's sealed cipher
-Intention  = reduce(hour_12)         — the hour; changes each hour
-Purpose    = reduce(attention + intention)
-Convergence = reduce(attention + intention + purpose)
+  Received Attention of  (Month)
+  Gained   Intention by  (Day)
+  Given    Purpose through all being born to (Month + Day)
+
+  Month and Day are carried as raw values; SM position = reduce(raw).
+  The Purpose sum (Month + Day) is UNREDUCED — "compound-not-collapsed."
+
+SECONDARY frame — Method B date cipher + 12-hour clock (labeled lens only):
+
+  method_b(date)            → date cipher
+  reduce(12-hour hour)      → hour cipher
+  reduce(cipher + hour)     → hour purpose
+  reduce(c + h + hp)        → convergence
+
+Sources:
+  Fraction Calendar — Notion 46e0a67b-a3dd-494f-ac5c-1cec071123ca
+  Lunar Thread      — Notion 35603691-bd5e-81a3-a4d4-fa3b27ca0975
 """
 
 from __future__ import annotations
+import calendar
 import datetime
 from typing import Any
 
@@ -20,9 +32,26 @@ from .digits import reduce, method_a, method_b, method_c, calculation_steps
 from .lexicon import Lexicon
 from .moon import moon_phase as _moon_phase
 
+_SOURCES: dict[str, dict[str, str]] = {
+    "fraction_calendar": {
+        "name":      "Founder's Month/Day Fraction Calendar",
+        "notion_id": "46e0a67ba3dd494fac5c1cec071123ca",
+    },
+    "lunar_thread": {
+        "name":      "Lunar Cycle Learning Thread",
+        "notion_id": "35603691bd5e81a3a4d4fa3b27ca0975",
+    },
+}
 
-def _rec(n: int, lex: Lexicon) -> dict[str, Any]:
-    return {"number": n, **lex.get(n)}
+
+def _seat(position: int, lex: Lexicon) -> dict[str, Any]:
+    entry = lex.get(position)
+    return {
+        "number":   position,
+        "name":     entry["name"],
+        "pie_root": entry.get("pie_root", ""),
+        "say":      entry.get("say", ""),
+    }
 
 
 def compute_daily(
@@ -32,16 +61,12 @@ def compute_daily(
     """
     Compute the Supreme Mathematics reading for *dt*.
 
-    Accepts a datetime (time-aware reading) or a date (intention uses
-    midnight / hour 0, which reduces to 12 on the 12-hour clock).
-
-    Returns a dict with keys:
-      datetime, date, time,
-      attention (method_b), intention (reduce of 12-hr hour),
-      purpose (reduce of att+int), convergence (reduce of att+int+pur),
-      address (method_a Y·M·W·D), year_arc (reduce of year),
-      moon, calculation (display string), onion_instruction,
-      methods {a: display_str, b: int, c: int}
+    Returns a dict with:
+      date, time,
+      attention / intention / purpose  (primary Fraction Calendar frame),
+      secondary  (Method B + 12-hour clock lens),
+      year_arc, address, moon, calculation,
+      methods {a, b, c}, sources
     """
     if isinstance(dt, datetime.datetime):
         date = dt.date()
@@ -50,44 +75,96 @@ def compute_daily(
         date = dt
         hour = 0
 
-    h12 = (hour % 12) or 12
+    month = date.month
+    day   = date.day
+    year  = date.year
+    month_name = calendar.month_name[month]  # "May"
 
-    attention_n   = method_b(date)
-    intention_n   = reduce(h12)
-    purpose_n     = reduce(attention_n + intention_n)
-    convergence_n = reduce(attention_n + intention_n + purpose_n)
-    year_n        = reduce(date.year)
+    # ── Primary: Fraction Calendar ────────────────────────────────────────────
+    att_pos = reduce(month)
+    itn_pos = reduce(day)
+    pur_raw = month + day        # UNREDUCED — compound-not-collapsed
+    pur_pos = reduce(pur_raw)
 
-    addr      = method_a(date)
+    attention = {
+        **_seat(att_pos, lex),
+        "verb":    "Received",
+        "prep":    "of",
+        "raw":     month,
+        "liturgy": f"Received Attention of ({month_name} = {month})",
+    }
+    intention = {
+        **_seat(itn_pos, lex),
+        "verb":     "Gained",
+        "prep":     "by",
+        "raw":      day,
+        "compound": day != itn_pos,
+        "liturgy":  f"Gained Intention by ({day})",
+    }
+    purpose = {
+        **_seat(pur_pos, lex),
+        "verb":     "Given",
+        "prep":     "through",
+        "raw":      pur_raw,
+        "month":    month,
+        "day":      day,
+        "compound": pur_raw != pur_pos,
+        "liturgy": (
+            f"Given Purpose through all being born to "
+            f"({month} + {day} = {pur_raw})"
+        ),
+    }
+
+    # ── Secondary: Method B + 12-hour clock ──────────────────────────────────
+    h12     = (hour % 12) or 12
+    mb      = method_b(date)
+    mb_itn  = reduce(h12)
+    mb_pur  = reduce(mb + mb_itn)
+    mb_conv = reduce(mb + mb_itn + mb_pur)
+
+    secondary = {
+        "label": "Method B + 12-hour clock (secondary lens)",
+        "hour": {
+            "h12":    h12,
+            "number": mb_itn,
+            "name":   lex.name(mb_itn),
+        },
+        "attention": {
+            "number": mb,
+            "name":   lex.name(mb),
+        },
+        "purpose": {
+            "number": mb_pur,
+            "name":   lex.name(mb_pur),
+        },
+        "convergence": {
+            "number":  mb_conv,
+            "name":    lex.name(mb_conv),
+            "aligned": mb_conv == 6,
+        },
+    }
+
+    # ── Supporting ────────────────────────────────────────────────────────────
+    year_pos = reduce(year)
+    year_arc = {**_seat(year_pos, lex), "year": year}
+    addr     = method_a(date)
     steps_str, _, _ = calculation_steps(date)
 
-    att  = _rec(attention_n,   lex)
-    itn  = _rec(intention_n,   lex)
-    pur  = _rec(purpose_n,     lex)
-    conv = _rec(convergence_n, lex)
-    yr   = _rec(year_n,        lex)
-
-    onion = (
-        f"{att['name']} · {itn['name']} "
-        f"→ {pur['name']} born, resolved in {conv['name']}."
-    )
-
     return {
-        "datetime":          dt.isoformat() if isinstance(dt, datetime.datetime) else date.isoformat(),
-        "date":              date.isoformat(),
-        "time":              f"{hour:02d}:{0:02d}",
-        "attention":         att,
-        "intention":         itn,
-        "purpose":           pur,
-        "convergence":       conv,
-        "year_arc":          yr,
-        "address":           addr,
-        "moon":              _moon_phase(dt),
-        "calculation":       steps_str,
-        "onion_instruction": onion,
+        "date":        date.isoformat(),
+        "time":        f"{hour:02d}:00",
+        "attention":   attention,
+        "intention":   intention,
+        "purpose":     purpose,
+        "secondary":   secondary,
+        "year_arc":    year_arc,
+        "address":     addr,
+        "moon":        _moon_phase(dt),
+        "calculation": steps_str,
         "methods": {
             "a": addr["display"],
-            "b": method_b(date),
+            "b": mb,
             "c": method_c(date),
         },
+        "sources": _SOURCES,
     }
