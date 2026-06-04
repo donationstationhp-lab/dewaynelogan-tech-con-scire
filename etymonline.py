@@ -38,6 +38,8 @@ except ImportError:
         "  pip install requests beautifulsoup4"
     )
 
+import notion
+
 # ── Constants ─────────────────────────────────────────────────────────────────
 
 BASE_URL  = "https://www.etymonline.com"
@@ -291,6 +293,106 @@ def explore(word, depth=1, offline=False, no_cache=False):
     return explored
 
 
+# ── DKL_LOOP — Etymological Reasoning Engine ─────────────────────────────────
+
+# Seven-step protocol: D-K-[E|L]-W-S-N-C
+# v.A (Equality): step 3 = EQUALITY — weigh variables, catch flattening
+# v.B (Leading):  step 3 = LEADING  — draw the sequence forward
+
+_LOOP_STEPS_A = [
+    ("D", "DEPTH",    '*dʰewbʰ-* "to hollow, to dig"'),
+    ("K", "KNOWLEDGE",'*gno-* "to recognize"'),
+    ("E", "EQUALITY", '*aik-* "to be master of, to possess"'),
+    ("W", "WISDOM",   '*weid-* "to see"'),
+    ("S", "SOURCE",   '*s(w)e-* "one\'s own"'),
+    ("N", "NOW",      '*nu-* "now, at this moment"'),
+    ("C", "CONTAINER",'*kel-* "to cover, to hold"'),
+]
+
+_LOOP_STEPS_B = [
+    ("D", "DEPTH",   '*dʰewbʰ-* "to hollow, to dig"'),
+    ("K", "KNOWLEDGE",'*gno-* "to recognize"'),
+    ("L", "LEADING", '*deuk-* "to draw, to lead forth"'),
+    ("W", "WISDOM",  '*weid-* "to see"'),
+    ("S", "SOURCE",  '*s(w)e-* "one\'s own"'),
+    ("N", "NOW",     '*nu-* "now, at this moment"'),
+    ("C", "CONTAINER",'*kel-* "to cover, to hold"'),
+]
+
+
+def run_dkl_loop(word, variant="b", offline=False, no_cache=False):
+    """
+    Run the DKL_LOOP protocol on a word using fetched etymology data.
+    Returns (list[(letter, name, root, text)], from_cache).
+    """
+    result, from_cache = lookup(word, offline=offline, no_cache=no_cache)
+    entries  = result.get("entries", [])
+    related  = result.get("related", [])
+    schema   = _LOOP_STEPS_A if variant == "a" else _LOOP_STEPS_B
+
+    # Build body text for each step from the etymology data
+    bodies = []
+
+    # Step 1 — DEPTH: non-surface layer of the first entry
+    depth = entries[0].get("etymology", "") if entries else ""
+    bodies.append(depth if depth else "(no etymology found)")
+
+    # Step 2 — KNOWLEDGE: all distinct senses, each on its own terms
+    known_lines = []
+    for e in entries:
+        etym = e.get("etymology", "")
+        if etym:
+            known_lines.append(f"{e.get('word', word)}: {etym[:200]}")
+    bodies.append("\n".join(known_lines) if known_lines else "(no data)")
+
+    # Step 3 — variant-specific
+    if variant == "a":
+        # EQUALITY: enumerate distinct senses; refuse to collapse them
+        senses = [e.get("word", "") for e in entries if e.get("word")]
+        if len(senses) > 1:
+            eq = ("Distinct senses: " + " | ".join(senses[:6]) +
+                  "\nEach weighted on its own terms — not interchangeable tokens.")
+        elif senses:
+            eq = f"Single attested sense: {senses[0]}"
+        else:
+            eq = "(no senses identified)"
+        bodies.append(eq)
+    else:
+        # LEADING: which direction does the root point?
+        if related:
+            bodies.append("Sequence points toward: " + ", ".join(related[:5]))
+        else:
+            bodies.append("(no related words found — root may be a terminus)")
+
+    # Step 4 — WISDOM: what the depth + step-3 together reveal
+    if entries:
+        etym0 = entries[0].get("etymology", "")
+        wisdom = etym0[:300] + ("…" if len(etym0) > 300 else "")
+    else:
+        wisdom = "(no etymology to synthesize)"
+    bodies.append(wisdom if wisdom else "(no etymology to synthesize)")
+
+    # Step 5 — SOURCE: authorship verification
+    src = f"Etymology: etymonline.com · Word queried: '{word}'"
+    if from_cache:
+        src += "  [from cache]"
+    bodies.append(src)
+
+    # Step 6 — NOW: present action
+    if related:
+        bodies.append(f"Immediate move: run `explore {word}` or look up '{related[0]}' next.")
+    else:
+        bodies.append(f"Immediate move: run `look {word}` with --no-cache for a fresh trace.")
+
+    # Step 7 — CONTAINER: where the result is stored
+    cache_key = _cache_key("word", word)
+    bodies.append(f"Stored at: {_cache_path(cache_key)}")
+
+    steps = [(letter, name, root, body)
+             for (letter, name, root), body in zip(schema, bodies)]
+    return steps, from_cache
+
+
 # ── Formatted output ──────────────────────────────────────────────────────────
 
 BAR = "─" * WIDTH
@@ -333,6 +435,21 @@ def print_lookup(result):
         print()
 
 
+def print_dkl_loop(word, steps, variant="b", from_cache=False):
+    variant_label = "v.A — Equality" if variant == "a" else "v.B — Leading"
+    cache_note = "  [cached]" if from_cache else ""
+    print(f"\n{BAR}")
+    print(f"  DKL_LOOP {variant_label}{cache_note}")
+    print(f"  Input: {word}")
+    print(BAR)
+    for i, (letter, name, root, body) in enumerate(steps, 1):
+        print(f"\n  STEP {i} — {letter} — {name}  [{root}]")
+        for line in body.split("\n"):
+            if line.strip():
+                print(_wrap(line))
+    print()
+
+
 def print_explore(explored):
     root_word = next(iter(explored))
     print_lookup(explored[root_word])
@@ -357,6 +474,53 @@ def print_explore(explored):
     print()
 
 
+# ── Notion helpers ───────────────────────────────────────────────────────────
+
+def _notion_save_entries(entries):
+    """Save a flat list of entry dicts to Notion; prints status."""
+    try:
+        n = notion.save_entries(entries)
+        print(f"  [notion] Saved {n} entr{'y' if n == 1 else 'ies'} to Notion.")
+    except (EnvironmentError, requests.HTTPError) as exc:
+        print(f"  [notion] Warning: could not save to Notion — {exc}", file=sys.stderr)
+
+
+def _notion_save_lookup(result):
+    """Save a single lookup result (word + its entries) to Notion."""
+    word    = (result.get("word") or "").replace("  [cached]", "").strip()
+    entries = result.get("entries", [])
+    related = result.get("related", [])
+    if not entries:
+        print("  [notion] Nothing to save (no entries).", file=sys.stderr)
+        return
+    # Merge all entry etymologies under the word's canonical name.
+    combined = " | ".join(
+        e.get("etymology", "") for e in entries if e.get("etymology")
+    )
+    try:
+        notion.save_entry(word, combined, related=related)
+        print(f"  [notion] Saved '{word}' to Notion.")
+    except (EnvironmentError, requests.HTTPError) as exc:
+        print(f"  [notion] Warning: could not save to Notion — {exc}", file=sys.stderr)
+
+
+def _notion_save_explore(explored):
+    """Save every word in an explore result to Notion."""
+    saved = 0
+    try:
+        for word, result in explored.items():
+            entries = result.get("entries", [])
+            related = result.get("related", [])
+            combined = " | ".join(
+                e.get("etymology", "") for e in entries if e.get("etymology")
+            )
+            notion.save_entry(word, combined, related=related)
+            saved += 1
+        print(f"  [notion] Saved {saved} word{'s' if saved != 1 else ''} to Notion.")
+    except (EnvironmentError, requests.HTTPError) as exc:
+        print(f"  [notion] Warning: could not save to Notion — {exc}", file=sys.stderr)
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 def build_parser():
@@ -372,6 +536,9 @@ def build_parser():
                    help="Output raw JSON")
     p.add_argument("--no-cache", action="store_true", dest="no_cache",
                    help="Skip cache; always fetch fresh")
+    p.add_argument("--notion",   action="store_true",
+                   help="Save results to Notion (requires NOTION_TOKEN and "
+                        "NOTION_DATABASE_ID env vars)")
 
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -389,6 +556,12 @@ def build_parser():
     ca = sub.add_parser("cache", help="Manage the local cache")
     ca.add_argument("--list",  action="store_true", help="List cached entries")
     ca.add_argument("--clear", action="store_true", help="Delete all cached entries")
+
+    lp = sub.add_parser("loop",
+        help="Run the DKL_LOOP 7-step etymological reasoning protocol on a word")
+    lp.add_argument("word")
+    lp.add_argument("--variant", choices=["a", "b"], default="b",
+                    help="v.A=Equality (weigh/evaluate), v.B=Leading (direct/strategy) [default: b]")
 
     return p
 
@@ -412,6 +585,8 @@ def main():
                 if from_cache:
                     lbl += "  [cached]"
                 print_entries(results, lbl)
+            if args.notion:
+                _notion_save_entries(results)
 
         elif args.cmd == "look":
             result, from_cache = lookup(args.word, offline=args.offline,
@@ -424,6 +599,8 @@ def main():
                 if from_cache:
                     result = dict(result, word=result["word"] + "  [cached]")
                 print_lookup(result)
+            if args.notion:
+                _notion_save_lookup(result)
 
         elif args.cmd == "explore":
             explored = explore(args.word, depth=args.depth,
@@ -432,6 +609,23 @@ def main():
                 print(json.dumps(explored, indent=2))
             else:
                 print_explore(explored)
+            if args.notion:
+                _notion_save_explore(explored)
+
+        elif args.cmd == "loop":
+            steps, from_cache = run_dkl_loop(
+                args.word, variant=args.variant,
+                offline=args.offline, no_cache=args.no_cache,
+            )
+            if args.json:
+                print(json.dumps(
+                    [{"step": l, "name": n, "root": r, "body": b}
+                     for l, n, r, b in steps],
+                    indent=2,
+                ))
+            else:
+                print_dkl_loop(args.word, steps, variant=args.variant,
+                                from_cache=from_cache)
 
         elif args.cmd == "cache":
             if args.clear:
