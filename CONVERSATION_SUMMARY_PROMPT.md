@@ -1,81 +1,64 @@
 # Conversation Summary Prompt
-*Paste this at the top of any past conversation transcript to extract documentation status.*
+*Paste this at the start of any conversation transcript to extract documentation status.*
 
 ---
 
-## Prompt
+You are auditing the conversation transcript that follows this prompt. Your job is to extract two things:
 
-You are auditing a past conversation about the **Supreme Mathematics Daily Reading Engine** (repo: `donationstationhp-lab/dewaynelogan-tech-con-scire`). Your job is to extract two things:
+1. **What has been documented** — decisions, rules, implementations, or data that were explicitly written into a file, committed to code, saved somewhere, or stated as final and sealed during this conversation.
 
-1. **What has been documented** — decisions, implementations, corrections, sealed rules, and data that were committed or recorded in `CONTEXT_FOR_CLAUDE.md`, the codebase, or Notion during this conversation.
+2. **What still needs documentation** — anything discovered, decided, or agreed upon verbally during the conversation that was never written into a file, saved, or confirmed as recorded somewhere.
 
-2. **What still needs documentation** — open threads, unresolved questions, mid-conversation discoveries, or decisions made verbally that were never written into a file, a commit message, or `CONTEXT_FOR_CLAUDE.md`.
-
----
-
-### Format your response as follows:
+Read the entire transcript below, then respond using this exact format:
 
 ---
 
-#### DOCUMENTED (sealed / committed / recorded)
+### DOCUMENTED
+*(Things that were written, saved, committed, or sealed)*
 
 For each item:
-- **What:** one-sentence description of the decision, rule, or implementation
-- **Where:** file path, commit SHA (if visible), or Notion page name/ID
-- **Status:** `sealed` | `committed` | `in-progress`
+- **What:** One sentence describing the decision, rule, or implementation.
+- **Where:** Where it was saved — file name, commit, page title, or system (e.g. "committed to repo", "saved in Notion", "written to config file").
+- **Status:** `sealed` / `committed` / `saved` / `in-progress`
 
 ---
 
-#### NEEDS DOCUMENTATION (open / verbal only / not yet written)
+### NEEDS DOCUMENTATION
+*(Things said or decided but never written down)*
 
 For each item:
-- **What:** one-sentence description of what was discovered or decided
-- **Why it matters:** how it affects the engine, lexicon, moon calc, Fraction Calendar, or Notion sync
-- **Suggested home:** where it should be recorded (e.g., `CONTEXT_FOR_CLAUDE.md`, `data/sm_lexicon.json`, `suprememath/daily.py` docstring, Notion page, new file)
+- **What:** One sentence describing what was discovered or decided.
+- **Why it matters:** How it affects the project or future work.
+- **Suggested home:** Where it should be recorded (e.g. a README, a config file, a notes page, a specific file in the project).
 
 ---
 
-#### OPEN QUESTIONS (unresolved as of this conversation's end)
+### OPEN QUESTIONS
+*(Things that came up but were not resolved)*
 
 For each item:
-- **Question:** what remains unclear or undecided
-- **Context:** what was said about it
-- **Blocking:** does this block any existing feature? (yes / no / partial)
+- **Question:** What remains unclear or undecided.
+- **Context:** What was said about it in the conversation.
+- **Blocking:** Does this block anything? (yes / no / partial)
 
 ---
 
-#### CORRECTIONS MADE (things that were wrong and fixed)
+### CORRECTIONS MADE
+*(Things that started wrong and were fixed during the conversation)*
 
 For each item:
-- **Error:** what was incorrect
-- **Fix:** what replaced it
-- **Sealed:** yes / no
-
----
-
-### Key vocabulary to watch for in the transcript
-
-Use these terms to identify relevant passages:
-
-| Term | Meaning |
-|------|---------|
-| Fraction Calendar | Primary reading frame: Attention = month, Intention = raw day, Purpose = unreduced M+D |
-| compound-not-collapsed | Multi-digit sums shown unreduced; SM position is a secondary lookup |
-| Method A / B / C | Secondary arithmetic lens (labeled, not primary) |
-| sealed | A decision the user explicitly froze — do not change without being asked |
-| DKL_LOOP | 7-step etymological reasoning protocol |
-| Lexicon | `data/sm_lexicon.json` — user's own SM cipher, not the standard Five Percent list |
-| Steward | Role with authority over doctrinal (moon/calendar) interpretation |
-| held-in-study | An open thread acknowledged but not yet implemented operationally |
-| notion_sync | `suprememath/notion_sync.py` — pushes daily readings to Notion |
-| CONTEXT_FOR_CLAUDE.md | The transmittable session briefing file |
+- **Error:** What was incorrect at the start.
+- **Fix:** What replaced it.
+- **Recorded:** Was the fix written somewhere, or just stated verbally? (yes / no)
 
 ---
 
 ### Output rules
-
-- Be specific. Vague entries like "discussed moon phases" are not useful. Write: "User sealed Third Quarter (not Last Quarter) as the correct phase name — `suprememath/moon.py` line ~42."
-- If you cannot find where something was committed or saved, mark it `NEEDS DOCUMENTATION`.
-- If a decision contradicts `CONTEXT_FOR_CLAUDE.md` as you know it, flag it under `CORRECTIONS MADE` and note whether it was resolved.
-- Do not invent or infer decisions not present in the transcript.
+- Be specific. "Discussed moon phases" is not useful. Write exactly what was decided and where it ended up.
+- If you cannot find where something was saved or committed, put it under NEEDS DOCUMENTATION.
+- Do not invent or infer anything not present in the transcript.
 - Keep each bullet to 1–2 sentences.
+- If a section has nothing to report, write "None identified."
+
+---
+*(Paste the conversation transcript below this line)*
