@@ -1,5 +1,5 @@
 {
-  "next_id": 2,
+  "next_id": 3,
   "items": {
     "DS-0001": {
       "id": "DS-0001",
@@ -40,6 +40,22 @@
       ],
       "location": "B-3",
       "recipient": "Community Center"
+    },
+    "DS-0002": {
+      "id": "DS-0002",
+      "name": "Alps Mountaineering Lynx 1 Backpacking Tent",
+      "category": "shelter",
+      "condition": "good",
+      "donor": "Donation Station",
+      "stage": "intake",
+      "history": [
+        {
+          "stage": "intake",
+          "timestamp": "2026-08-02T20:38:09Z",
+          "by": "",
+          "notes": "Brand new"
+        }
+      ]
     }
   }
 }
