@@ -167,7 +167,7 @@
       "category": "financial",
       "condition": "good",
       "donor": "Mary",
-      "stage": "qc",
+      "stage": "storage",
       "history": [
         {
           "stage": "intake",
@@ -182,8 +182,16 @@
           "passed": true,
           "notes": "$20 cash verified",
           "maintenance": ""
+        },
+        {
+          "stage": "storage",
+          "timestamp": "2026-08-02T20:57:08Z",
+          "location": "Financial Section",
+          "by": "Donation Station",
+          "notes": ""
         }
-      ]
+      ],
+      "location": "Financial Section"
     }
   }
 }
