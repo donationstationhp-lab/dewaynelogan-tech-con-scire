@@ -327,13 +327,21 @@
       "category": "volunteer",
       "condition": "good",
       "donor": "Donation Station",
-      "stage": "intake",
+      "stage": "qc",
       "history": [
         {
           "stage": "intake",
           "timestamp": "2026-08-02T21:16:11Z",
           "by": "",
           "notes": ""
+        },
+        {
+          "stage": "qc",
+          "timestamp": "2026-08-02T21:16:41Z",
+          "by": "Donation Station",
+          "passed": true,
+          "notes": "Volunteer service accepted",
+          "maintenance": ""
         }
       ]
     }
