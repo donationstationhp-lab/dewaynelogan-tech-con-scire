@@ -21,6 +21,8 @@ Usage:
   python donation_station.py list
   python donation_station.py list --stage qc
   python donation_station.py report
+  python donation_station.py export
+  python donation_station.py export --out /path/to/file.csv
 """
 
 import argparse
@@ -247,6 +249,50 @@ def report():
     }
 
 
+def export(path=None):
+    import csv
+    db    = _load()
+    items = list(db["items"].values())
+
+    TIER_NAMES = {"T": "T — Time", "I": "I — Intelligence",
+                  "E": "E — Energy", "R": "R — Resources"}
+
+    rows = []
+    for item in items:
+        def _ev(stage):
+            return next((e for e in item["history"] if e["stage"] == stage), {})
+        intake = _ev("intake")
+        qc     = _ev("qc")
+        dist   = _ev("distributed")
+        tier   = item.get("tier") or classify_tier(item.get("category", "general"))
+        rows.append({
+            "Name":             item["name"],
+            "Item ID":          item["id"],
+            "T.I.E.R.":        TIER_NAMES.get(tier, tier),
+            "Category":         item.get("category", ""),
+            "Condition":        item.get("condition", ""),
+            "Stage":            item["stage"],
+            "Donor":            item.get("donor", ""),
+            "Recipient":        item.get("recipient", ""),
+            "Location":         item.get("location", ""),
+            "Date Received":    intake.get("timestamp", "")[:10],
+            "Date Distributed": dist.get("timestamp", "")[:10],
+            "Received By":      intake.get("by", ""),
+            "Distributed By":   dist.get("by", ""),
+            "QC Result":        "Pass" if qc.get("passed") else ("Fail" if qc else ""),
+            "Notes":            intake.get("notes", ""),
+        })
+
+    if path is None:
+        path = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                            "donation_station_export.csv")
+    with open(path, "w", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=rows[0].keys() if rows else [])
+        writer.writeheader()
+        writer.writerows(rows)
+    return path, len(rows)
+
+
 def _get_item(db, item_id):
     item = db["items"].get(item_id)
     if not item:
@@ -458,6 +504,16 @@ def main():
                 print(json.dumps(r, indent=2))
             else:
                 print_report(r)
+
+        elif cmd == "export":
+            p = argparse.ArgumentParser(prog="donation_station export")
+            p.add_argument("--out", default=None, help="output file path")
+            a        = p.parse_args(rest)
+            path, n  = export(a.out)
+            if use_json:
+                print(json.dumps({"path": path, "count": n}))
+            else:
+                print(f"  Exported {n} item(s) → {path}")
 
         else:
             sys.exit(f"Unknown command '{cmd}'. Run without arguments for usage.")
