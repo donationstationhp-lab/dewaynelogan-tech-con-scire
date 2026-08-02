@@ -411,5 +411,22 @@
       "location": "Intelligence Section",
       "recipient": "Unknown Future Recipients"
     }
+  },
+  "next_lot": 1,
+  "locations": {
+    "CL-A1": {
+      "code": "CL-A1",
+      "zone": "clothing",
+      "capacity": 20,
+      "description": "Clothing aisle 1",
+      "count": 0
+    },
+    "FD-B1": {
+      "code": "FD-B1",
+      "zone": "food",
+      "capacity": 15,
+      "description": "Food bay 1",
+      "count": 0
+    }
   }
 }
