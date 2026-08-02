@@ -1,5 +1,5 @@
 {
-  "next_id": 8,
+  "next_id": 9,
   "items": {
     "DS-0001": {
       "id": "DS-0001",
@@ -240,6 +240,22 @@
       ],
       "location": "Technology Section",
       "recipient": "Matthew"
+    },
+    "DS-0008": {
+      "id": "DS-0008",
+      "name": "Toiletries",
+      "category": "hygiene",
+      "condition": "good",
+      "donor": "Brave Space Alliance",
+      "stage": "intake",
+      "history": [
+        {
+          "stage": "intake",
+          "timestamp": "2026-08-02T21:06:26Z",
+          "by": "",
+          "notes": ""
+        }
+      ]
     }
   }
 }
