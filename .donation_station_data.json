@@ -247,13 +247,21 @@
       "category": "hygiene",
       "condition": "good",
       "donor": "Brave Space Alliance",
-      "stage": "intake",
+      "stage": "qc",
       "history": [
         {
           "stage": "intake",
           "timestamp": "2026-08-02T21:06:26Z",
           "by": "",
           "notes": ""
+        },
+        {
+          "stage": "qc",
+          "timestamp": "2026-08-02T21:07:19Z",
+          "by": "Donation Station",
+          "passed": true,
+          "notes": "Good condition, ready for distribution",
+          "maintenance": ""
         }
       ]
     }
