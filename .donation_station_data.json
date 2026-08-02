@@ -167,13 +167,21 @@
       "category": "financial",
       "condition": "good",
       "donor": "Mary",
-      "stage": "intake",
+      "stage": "qc",
       "history": [
         {
           "stage": "intake",
           "timestamp": "2026-08-02T20:55:30Z",
           "by": "",
           "notes": "$20 cash donation"
+        },
+        {
+          "stage": "qc",
+          "timestamp": "2026-08-02T20:56:22Z",
+          "by": "Donation Station",
+          "passed": true,
+          "notes": "$20 cash verified",
+          "maintenance": ""
         }
       ]
     }
