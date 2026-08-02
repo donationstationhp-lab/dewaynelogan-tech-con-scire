@@ -1,5 +1,5 @@
 {
-  "next_id": 9,
+  "next_id": 10,
   "items": {
     "DS-0001": {
       "id": "DS-0001",
@@ -280,6 +280,22 @@
       ],
       "location": "Hygiene Section",
       "recipient": "Anonymous"
+    },
+    "DS-0009": {
+      "id": "DS-0009",
+      "name": "Time",
+      "category": "volunteer",
+      "condition": "good",
+      "donor": "Matthew",
+      "stage": "intake",
+      "history": [
+        {
+          "stage": "intake",
+          "timestamp": "2026-08-02T21:12:14Z",
+          "by": "",
+          "notes": ""
+        }
+      ]
     }
   }
 }
