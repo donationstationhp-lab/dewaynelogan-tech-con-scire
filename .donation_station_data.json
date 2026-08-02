@@ -1,5 +1,5 @@
 {
-  "next_id": 5,
+  "next_id": 7,
   "items": {
     "DS-0001": {
       "id": "DS-0001",
@@ -160,6 +160,22 @@
       ],
       "location": "Food Section",
       "recipient": "Matthew"
+    },
+    "DS-0006": {
+      "id": "DS-0006",
+      "name": "20 Dollars",
+      "category": "financial",
+      "condition": "good",
+      "donor": "Mary",
+      "stage": "intake",
+      "history": [
+        {
+          "stage": "intake",
+          "timestamp": "2026-08-02T20:55:30Z",
+          "by": "",
+          "notes": "$20 cash donation"
+        }
+      ]
     }
   }
 }
