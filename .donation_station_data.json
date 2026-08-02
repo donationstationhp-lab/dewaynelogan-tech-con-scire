@@ -1,5 +1,5 @@
 {
-  "next_id": 11,
+  "next_id": 12,
   "items": {
     "DS-0001": {
       "id": "DS-0001",
@@ -369,6 +369,23 @@
       "location": "Volunteer Section",
       "recipient": "Josh",
       "tier": "T"
+    },
+    "DS-0011": {
+      "id": "DS-0011",
+      "name": "AI Sunday",
+      "category": "study session",
+      "tier": "I",
+      "condition": "good",
+      "donor": "Yes You Are",
+      "stage": "intake",
+      "history": [
+        {
+          "stage": "intake",
+          "timestamp": "2026-08-02T21:29:28Z",
+          "by": "",
+          "notes": ""
+        }
+      ]
     }
   }
 }
