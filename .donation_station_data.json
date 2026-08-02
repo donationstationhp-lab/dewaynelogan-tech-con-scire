@@ -1,5 +1,5 @@
 {
-  "next_id": 10,
+  "next_id": 11,
   "items": {
     "DS-0001": {
       "id": "DS-0001",
@@ -320,6 +320,22 @@
       ],
       "location": "Volunteer Section",
       "recipient": "Donation Station"
+    },
+    "DS-0010": {
+      "id": "DS-0010",
+      "name": "Dog Walking",
+      "category": "volunteer",
+      "condition": "good",
+      "donor": "Donation Station",
+      "stage": "intake",
+      "history": [
+        {
+          "stage": "intake",
+          "timestamp": "2026-08-02T21:16:11Z",
+          "by": "",
+          "notes": ""
+        }
+      ]
     }
   }
 }
