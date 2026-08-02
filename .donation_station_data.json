@@ -47,7 +47,7 @@
       "category": "shelter",
       "condition": "good",
       "donor": "Donation Station",
-      "stage": "storage",
+      "stage": "distributed",
       "history": [
         {
           "stage": "intake",
@@ -69,9 +69,17 @@
           "location": "Shelter Section",
           "by": "Donation Station",
           "notes": "Alps Mountaineering Lynx 1 tent stored in shelter section"
+        },
+        {
+          "stage": "distributed",
+          "timestamp": "2026-08-02T20:41:31Z",
+          "recipient": "Matthew",
+          "by": "Donation Station",
+          "notes": ""
         }
       ],
-      "location": "Shelter Section"
+      "location": "Shelter Section",
+      "recipient": "Matthew"
     }
   }
 }
