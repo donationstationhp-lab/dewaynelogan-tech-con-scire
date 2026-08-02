@@ -207,13 +207,21 @@
       "category": "technology",
       "condition": "good",
       "donor": "Donation Station",
-      "stage": "intake",
+      "stage": "qc",
       "history": [
         {
           "stage": "intake",
           "timestamp": "2026-08-02T21:01:31Z",
           "by": "",
           "notes": ""
+        },
+        {
+          "stage": "qc",
+          "timestamp": "2026-08-02T21:01:59Z",
+          "by": "Donation Station",
+          "passed": true,
+          "notes": "Good condition, fully functional",
+          "maintenance": ""
         }
       ]
     }
