@@ -377,13 +377,21 @@
       "tier": "I",
       "condition": "good",
       "donor": "Yes You Are",
-      "stage": "intake",
+      "stage": "qc",
       "history": [
         {
           "stage": "intake",
           "timestamp": "2026-08-02T21:29:28Z",
           "by": "",
           "notes": ""
+        },
+        {
+          "stage": "qc",
+          "timestamp": "2026-08-02T21:30:00Z",
+          "by": "Donation Station",
+          "passed": true,
+          "notes": "AI study session verified and accepted",
+          "maintenance": ""
         }
       ]
     }
