@@ -207,7 +207,7 @@
       "category": "technology",
       "condition": "good",
       "donor": "Donation Station",
-      "stage": "storage",
+      "stage": "distributed",
       "history": [
         {
           "stage": "intake",
@@ -229,9 +229,17 @@
           "location": "Technology Section",
           "by": "Donation Station",
           "notes": ""
+        },
+        {
+          "stage": "distributed",
+          "timestamp": "2026-08-02T21:02:39Z",
+          "recipient": "Matthew",
+          "by": "Donation Station",
+          "notes": ""
         }
       ],
-      "location": "Technology Section"
+      "location": "Technology Section",
+      "recipient": "Matthew"
     }
   }
 }
