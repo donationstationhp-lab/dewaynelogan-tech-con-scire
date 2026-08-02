@@ -24,6 +24,32 @@ Usage:
   python donation_station.py report
   python donation_station.py export
   python donation_station.py export --out /path/to/file.csv
+
+  # Lot tracking (Dart-style)
+  python donation_station.py intake "Jacket" --lot LOT-0001
+  python donation_station.py lot LOT-0001
+  python donation_station.py lots
+
+  # Location system (Target-style)
+  python donation_station.py location add CL-A4 --zone clothing --capacity 20
+  python donation_station.py location list
+  python donation_station.py capacity
+
+  # FIFO & pick lists (Target/Dart)
+  python donation_station.py fifo
+  python donation_station.py picklist
+  python donation_station.py picklist --recipient "Matthew"
+
+  # Labels
+  python donation_station.py label DS-0001
+
+  # Throughput & QC metrics (Dart-style)
+  python donation_station.py metrics
+
+  # Maintenance scheduling (Dart-style)
+  python donation_station.py maintenance
+  python donation_station.py maintain DS-0001 --due 2026-08-10 --by "Staff"
+  python donation_station.py maintain DS-0001 --complete --notes "Zipper fixed" --by "Staff"
 """
 
 import argparse
@@ -126,8 +152,11 @@ def _power_date(timestamp):
 def _load():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE) as f:
-            return json.load(f)
-    return {"next_id": 1, "items": {}}
+            db = json.load(f)
+        db.setdefault("next_lot", 1)
+        db.setdefault("locations", {})
+        return db
+    return {"next_id": 1, "next_lot": 1, "items": {}, "locations": {}}
 
 
 def _save(db):
@@ -141,15 +170,24 @@ def _next_id(db):
     return f"DS-{n:04d}"
 
 
+def _next_lot_id(db):
+    n = db.get("next_lot", 1)
+    db["next_lot"] = n + 1
+    return f"LOT-{n:04d}"
+
+
 # ── Core operations ───────────────────────────────────────────────────────────
 
-def intake(name, category="general", condition="good", donor="", notes="", by=""):
+def intake(name, category="general", condition="good", donor="", notes="", by="", lot=""):
     db      = _load()
     item_id = _next_id(db)
     tier    = classify_tier(category)
     ts      = _now()
+    if not lot:
+        lot = _next_lot_id(db)
     item = {
         "id":        item_id,
+        "lot":       lot,
         "name":      name,
         "category":  category,
         "tier":      tier,
@@ -212,6 +250,8 @@ def store(item_id, location, by="", notes=""):
     item["history"].append(event)
     item["stage"]    = "storage"
     item["location"] = location
+    if location in db.get("locations", {}):
+        db["locations"][location]["count"] = db["locations"][location].get("count", 0) + 1
     _save(db)
     return item
 
@@ -228,9 +268,12 @@ def distribute(item_id, recipient, by="", notes=""):
         "by":        by,
         "notes":     notes,
     }
+    loc = item.get("location")
     item["history"].append(event)
     item["stage"]     = "distributed"
     item["recipient"] = recipient
+    if loc and loc in db.get("locations", {}):
+        db["locations"][loc]["count"] = max(0, db["locations"][loc].get("count", 1) - 1)
     _save(db)
     return item
 
@@ -263,6 +306,211 @@ def search(query):
         if q in haystack:
             results.append(item)
     return results
+
+
+# ── Lot tracking (Dart) ──────────────────────────────────────────────────────
+
+def lot_info(lot_id):
+    db    = _load()
+    items = [i for i in db["items"].values() if i.get("lot") == lot_id]
+    if not items:
+        raise KeyError(f"Lot '{lot_id}' not found.")
+    return items
+
+
+def lots_list():
+    db   = _load()
+    seen = {}
+    for item in db["items"].values():
+        lot = item.get("lot", "")
+        if lot not in seen:
+            seen[lot] = {"lot": lot, "count": 0, "stages": {}}
+        seen[lot]["count"] += 1
+        s = item["stage"]
+        seen[lot]["stages"][s] = seen[lot]["stages"].get(s, 0) + 1
+    return sorted(seen.values(), key=lambda x: x["lot"])
+
+
+# ── Location system (Target) ──────────────────────────────────────────────────
+
+def add_location(code, zone="", capacity=0, description=""):
+    db = _load()
+    db["locations"][code] = {
+        "code":        code,
+        "zone":        zone,
+        "capacity":    capacity,
+        "description": description,
+        "count":       0,
+    }
+    _save(db)
+    return db["locations"][code]
+
+
+def list_locations():
+    db = _load()
+    return list(db.get("locations", {}).values())
+
+
+def capacity_report():
+    db   = _load()
+    locs = list(db.get("locations", {}).values())
+    items = list(db["items"].values())
+    actual = {}
+    for item in items:
+        if item["stage"] == "storage" and item.get("location"):
+            actual[item["location"]] = actual.get(item["location"], 0) + 1
+    for loc in locs:
+        loc["actual"] = actual.get(loc["code"], loc.get("count", 0))
+    return locs
+
+
+# ── FIFO & pick lists (Target/Dart) ──────────────────────────────────────────
+
+def fifo_list():
+    """Storage items sorted oldest-intake-first (FIFO)."""
+    items = list_items("storage")
+    def _intake_ts(item):
+        ev = next((e for e in item["history"] if e["stage"] == "intake"), {})
+        return ev.get("timestamp", "")
+    return sorted(items, key=_intake_ts)
+
+
+def pick_list(recipient=""):
+    """Generate a pick list from storage items (FIFO order)."""
+    items = fifo_list()
+    picks = []
+    for i, item in enumerate(items, 1):
+        ev = next((e for e in item["history"] if e["stage"] == "intake"), {})
+        picks.append({
+            "pick":      i,
+            "id":        item["id"],
+            "lot":       item.get("lot", ""),
+            "name":      item["name"],
+            "location":  item.get("location", "—"),
+            "tier":      item.get("tier", "R"),
+            "category":  item.get("category", ""),
+            "intake_ts": ev.get("timestamp", "")[:10],
+        })
+    return {"recipient": recipient, "picks": picks, "total": len(picks)}
+
+
+# ── Throughput & QC metrics (Dart) ───────────────────────────────────────────
+
+def metrics():
+    from datetime import datetime, timezone, timedelta
+    db    = _load()
+    items = list(db["items"].values())
+    now   = datetime.now(timezone.utc)
+
+    def _parse(ts):
+        try:
+            return datetime.strptime(ts, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        except Exception:
+            return None
+
+    def _intake_dt(item):
+        ev = next((e for e in item["history"] if e["stage"] == "intake"), {})
+        return _parse(ev.get("timestamp", ""))
+
+    counts_today  = sum(1 for i in items if (d := _intake_dt(i)) and d.date() == now.date())
+    counts_7d     = sum(1 for i in items if (d := _intake_dt(i)) and (now - d).days <= 7)
+    counts_30d    = sum(1 for i in items if (d := _intake_dt(i)) and (now - d).days <= 30)
+
+    stage_pairs = [("intake", "qc"), ("qc", "storage"), ("storage", "distributed")]
+    velocity    = {}
+    for s1, s2 in stage_pairs:
+        deltas = []
+        for item in items:
+            t1 = next((_parse(e["timestamp"]) for e in item["history"] if e["stage"] == s1), None)
+            t2 = next((_parse(e["timestamp"]) for e in item["history"] if e["stage"] == s2), None)
+            if t1 and t2:
+                deltas.append((t2 - t1).total_seconds() / 3600)
+        velocity[f"{s1}→{s2}"] = round(sum(deltas) / len(deltas), 1) if deltas else None
+
+    qc_events = [e for i in items for e in i["history"] if e["stage"] == "qc"]
+    by_cat    = {}
+    for item in items:
+        qc = next((e for e in item["history"] if e["stage"] == "qc"), None)
+        if qc:
+            cat = item.get("category", "general")
+            if cat not in by_cat:
+                by_cat[cat] = {"pass": 0, "fail": 0}
+            if qc.get("passed"):
+                by_cat[cat]["pass"] += 1
+            else:
+                by_cat[cat]["fail"] += 1
+
+    total_pass = sum(v["pass"] for v in by_cat.values())
+    total_fail = sum(v["fail"] for v in by_cat.values())
+    total_qc   = total_pass + total_fail
+
+    maint_items = [i for i in items if i.get("maintenance_needed") and i["stage"] != "distributed"]
+    overdue     = []
+    for item in maint_items:
+        due = item.get("maintenance_due")
+        if due and due < now.strftime("%Y-%m-%d"):
+            overdue.append(item)
+
+    return {
+        "throughput": {
+            "today":   counts_today,
+            "7_days":  counts_7d,
+            "30_days": counts_30d,
+        },
+        "velocity": velocity,
+        "qc": {
+            "total":      total_qc,
+            "pass":       total_pass,
+            "fail":       total_fail,
+            "pass_rate":  round(total_pass / total_qc * 100) if total_qc else 0,
+            "by_category": by_cat,
+        },
+        "maintenance": {
+            "pending": len(maint_items),
+            "overdue": len(overdue),
+        },
+    }
+
+
+# ── Maintenance scheduling (Dart) ─────────────────────────────────────────────
+
+def maintenance_list():
+    db = _load()
+    return [i for i in db["items"].values()
+            if i.get("maintenance_needed") and i["stage"] != "distributed"]
+
+
+def schedule_maintenance(item_id, due="", by=""):
+    db   = _load()
+    item = _get_item(db, item_id)
+    if not item.get("maintenance_needed"):
+        raise ValueError(f"{item_id} has no maintenance flagged.")
+    item["maintenance_due"] = due
+    item["maintenance_assigned_to"] = by
+    _save(db)
+    return item
+
+
+def complete_maintenance(item_id, notes="", by=""):
+    db   = _load()
+    item = _get_item(db, item_id)
+    if not item.get("maintenance_needed"):
+        raise ValueError(f"{item_id} has no maintenance flagged.")
+    event = {
+        "stage":     "qc",
+        "timestamp": _now(),
+        "by":        by,
+        "passed":    True,
+        "notes":     notes or "Maintenance completed.",
+        "maintenance": item["maintenance_needed"],
+    }
+    item["history"].append(event)
+    item["stage"]              = "qc"
+    item["maintenance_needed"] = None
+    item.pop("maintenance_due", None)
+    item.pop("maintenance_assigned_to", None)
+    _save(db)
+    return item
 
 
 def report():
@@ -391,7 +639,7 @@ def print_item(item, header="ITEM"):
     print(f"  {header}  —  {item['id']}  |  {item['name']}")
     print(f"  Category: {item['category']}  |  T.I.E.R.: {tier} — {tier_name}"
           + (f"  |  Condition: {item['condition']}" if item.get('condition') else ""))
-    print(f"  Donor: {item.get('donor', '—')}  |  Stage: {STAGE_LABELS.get(item['stage'], item['stage'].upper())}")
+    print(f"  Lot: {item.get('lot', '—')}  |  Donor: {item.get('donor', '—')}  |  Stage: {STAGE_LABELS.get(item['stage'], item['stage'].upper())}")
     if item.get("location"):
         print(f"  Location: {item['location']}")
     if item.get("maintenance_needed"):
@@ -453,6 +701,102 @@ def print_report(r):
     print()
 
 
+def print_label(item):
+    tier      = item.get("tier") or classify_tier(item.get("category", "general"))
+    tier_name = TIER_LABELS.get(tier, tier)
+    ev_intake = next((e for e in item["history"] if e["stage"] == "intake"), {})
+    lw = 46
+    sep = "─" * lw
+    print(f"\n┌{sep}┐")
+    print(f"│  {'Item ID':<10}  {item['id']:<12}  {'Lot':<6}  {item.get('lot','—'):<10}│")
+    print(f"│  {sep[:lw-2]}  │".replace("│  ─" * 23, f"│  {sep}  │"))
+    print(f"│  {item['name'][:lw-2]:<{lw-2}}│")
+    print(f"│  T.I.E.R.: {tier} — {tier_name:<{lw-14}}│")
+    print(f"│  Category: {item.get('category',''):<16}  Condition: {item.get('condition',''):<6}│")
+    if item.get("location"):
+        print(f"│  Location: {item['location']:<{lw-12}}│")
+    print(f"│  Intake: {ev_intake.get('timestamp','')[:10]:<12}  By: {ev_intake.get('by','—'):<{lw-26}}│")
+    print(f"│  Donor: {item.get('donor','—')[:lw-9]:<{lw-9}}│")
+    print(f"└{sep}┘")
+
+
+def print_picklist(pl):
+    recipient = pl.get("recipient") or "All"
+    print(f"\n{BAR}")
+    print(f"  PICK LIST  —  {recipient}")
+    print(f"  {len(pl['picks'])} item(s)  |  FIFO order (oldest intake first)")
+    print(BAR)
+    if not pl["picks"]:
+        print("  No items in storage.\n")
+        return
+    print(f"\n  {'#':<4}  {'ID':<10}  {'LOT':<10}  {'LOCATION':<16}  {'INTAKE':<12}  NAME")
+    print(f"  {'─'*4}  {'─'*10}  {'─'*10}  {'─'*16}  {'─'*12}  {'─'*20}")
+    for p in pl["picks"]:
+        print(f"  {p['pick']:<4}  {p['id']:<10}  {p['lot']:<10}  {p['location']:<16}  {p['intake_ts']:<12}  {p['name'][:28]}")
+    print()
+
+
+def print_locations(locs):
+    if not locs:
+        print("  No locations defined. Add with: donation_station.py location add <code>\n")
+        return
+    print(f"\n{BAR}")
+    print(f"  {'CODE':<16}  {'ZONE':<14}  {'CURRENT':>8}  {'CAPACITY':>9}  {'FILL':>6}  DESCRIPTION")
+    print(BAR)
+    for loc in sorted(locs, key=lambda x: x["code"]):
+        cap   = loc.get("capacity", 0)
+        cur   = loc.get("actual", loc.get("count", 0))
+        fill  = f"{int(cur/cap*100)}%" if cap else "—"
+        bar   = ("█" * int(cur / cap * 10) if cap else "") + ("░" * (10 - int(cur/cap*10)) if cap else "")
+        print(f"  {loc['code']:<16}  {loc.get('zone',''):<14}  {cur:>8}  {cap:>9}  {fill:>6}  {loc.get('description','')}")
+    print()
+
+
+def print_metrics(m):
+    t  = m["throughput"]
+    v  = m["velocity"]
+    qc = m["qc"]
+    mn = m["maintenance"]
+    print(f"\n{BAR}")
+    print(f"  METRICS  —  THROUGHPUT & QUALITY")
+    print(BAR)
+    print(f"\n  Throughput")
+    print(f"    Today:      {t['today']:>4}")
+    print(f"    Last 7d:    {t['7_days']:>4}")
+    print(f"    Last 30d:   {t['30_days']:>4}")
+    print(f"\n  Stage Velocity (avg hours)")
+    for label, val in v.items():
+        display = f"{val}h" if val is not None else "—"
+        print(f"    {label:<24}  {display}")
+    print(f"\n  QC Performance")
+    print(f"    Overall pass rate:  {qc['pass_rate']}%  ({qc['pass']}/{qc['total']})")
+    if qc["by_category"]:
+        print(f"\n    By Category:")
+        for cat, vals in sorted(qc["by_category"].items()):
+            total = vals["pass"] + vals["fail"]
+            rate  = int(vals["pass"] / total * 100) if total else 0
+            bar   = "█" * (rate // 10)
+            print(f"      {cat:<20}  {vals['pass']:>3}/{total:<3}  {rate:>3}%  {bar}")
+    print(f"\n  Maintenance")
+    print(f"    Pending:  {mn['pending']}")
+    if mn["overdue"]:
+        print(f"    Overdue:  {mn['overdue']}  ← action needed")
+    print()
+
+
+def print_lots(lots):
+    if not lots:
+        print("  No lots recorded.\n")
+        return
+    print(f"\n{BAR}")
+    print(f"  {'LOT':<12}  {'ITEMS':>6}  STAGE BREAKDOWN")
+    print(BAR)
+    for lot in lots:
+        stages = "  ".join(f"{s}:{n}" for s, n in lot["stages"].items())
+        print(f"  {lot['lot']:<12}  {lot['count']:>6}  {stages}")
+    print()
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 def main():
@@ -477,8 +821,9 @@ def main():
             p.add_argument("--donor",     default="")
             p.add_argument("--notes",     default="")
             p.add_argument("--by",        default="")
+            p.add_argument("--lot",       default="")
             a    = p.parse_args(rest)
-            item = intake(a.name, a.category, a.condition, a.donor, a.notes, a.by)
+            item = intake(a.name, a.category, a.condition, a.donor, a.notes, a.by, a.lot)
             if use_json:
                 print(json.dumps(item, indent=2))
             else:
@@ -564,6 +909,133 @@ def main():
                     print(f"  No items matched '{' '.join(rest)}'.")
                 else:
                     print_list(results)
+
+        elif cmd == "lot":
+            if not rest:
+                lots = lots_list()
+                if use_json:
+                    print(json.dumps(lots, indent=2))
+                else:
+                    print_lots(lots)
+            else:
+                items = lot_info(rest[0])
+                if use_json:
+                    print(json.dumps(items, indent=2))
+                else:
+                    print(f"\n  Lot {rest[0]}  —  {len(items)} item(s)")
+                    print_list(items)
+
+        elif cmd == "lots":
+            lots = lots_list()
+            if use_json:
+                print(json.dumps(lots, indent=2))
+            else:
+                print_lots(lots)
+
+        elif cmd == "location":
+            if not rest:
+                sys.exit("Usage: donation_station.py location add <code> | list")
+            sub = rest[0]
+            if sub == "add":
+                p = argparse.ArgumentParser(prog="donation_station location add")
+                p.add_argument("code")
+                p.add_argument("--zone",        default="")
+                p.add_argument("--capacity",    type=int, default=0)
+                p.add_argument("--description", default="")
+                a   = p.parse_args(rest[1:])
+                loc = add_location(a.code, a.zone, a.capacity, a.description)
+                if use_json:
+                    print(json.dumps(loc, indent=2))
+                else:
+                    print(f"  Location {loc['code']} added  (zone={loc['zone']}, capacity={loc['capacity']})")
+            elif sub == "list":
+                locs = list_locations()
+                if use_json:
+                    print(json.dumps(locs, indent=2))
+                else:
+                    print_locations(locs)
+            else:
+                sys.exit(f"Unknown location sub-command '{sub}'. Use: add | list")
+
+        elif cmd == "capacity":
+            locs = capacity_report()
+            if use_json:
+                print(json.dumps(locs, indent=2))
+            else:
+                print_locations(locs)
+
+        elif cmd == "fifo":
+            items = fifo_list()
+            if use_json:
+                print(json.dumps(items, indent=2))
+            else:
+                if not items:
+                    print("  No items in storage.")
+                else:
+                    print(f"\n  FIFO — {len(items)} item(s) in storage (oldest first)\n")
+                    print_list(items)
+
+        elif cmd == "picklist":
+            p = argparse.ArgumentParser(prog="donation_station picklist")
+            p.add_argument("--recipient", default="")
+            a  = p.parse_args(rest)
+            pl = pick_list(a.recipient)
+            if use_json:
+                print(json.dumps(pl, indent=2))
+            else:
+                print_picklist(pl)
+
+        elif cmd == "label":
+            if not rest:
+                sys.exit("Usage: donation_station.py label <item-id>")
+            item = get_status(rest[0])
+            if use_json:
+                print(json.dumps(item, indent=2))
+            else:
+                print_label(item)
+
+        elif cmd == "metrics":
+            m = metrics()
+            if use_json:
+                print(json.dumps(m, indent=2))
+            else:
+                print_metrics(m)
+
+        elif cmd == "maintenance":
+            items = maintenance_list()
+            if use_json:
+                print(json.dumps(items, indent=2))
+            else:
+                if not items:
+                    print("  No maintenance pending.\n")
+                else:
+                    print(f"\n  {len(items)} item(s) pending maintenance:\n")
+                    for item in items:
+                        due  = item.get("maintenance_due", "—")
+                        asgn = item.get("maintenance_assigned_to", "—")
+                        print(f"  {item['id']}  {item['name'][:28]:<28}  Due: {due:<12}  Assigned: {asgn}")
+                        print(f"           {item.get('maintenance_needed','')}")
+                    print()
+
+        elif cmd == "maintain":
+            p = argparse.ArgumentParser(prog="donation_station maintain")
+            p.add_argument("item_id")
+            p.add_argument("--due",      default="")
+            p.add_argument("--by",       default="")
+            p.add_argument("--complete", action="store_true")
+            p.add_argument("--notes",    default="")
+            a = p.parse_args(rest)
+            if a.complete:
+                item = complete_maintenance(a.item_id, a.notes, a.by)
+            else:
+                item = schedule_maintenance(a.item_id, a.due, a.by)
+            if use_json:
+                print(json.dumps(item, indent=2))
+            else:
+                if a.complete:
+                    print(f"  {a.item_id} maintenance complete. Stage: qc (ready to store).")
+                else:
+                    print(f"  {a.item_id} maintenance scheduled. Due: {a.due or '—'}  Assigned: {a.by or '—'}")
 
         elif cmd == "export":
             p = argparse.ArgumentParser(prog="donation_station export")
