@@ -287,7 +287,7 @@
       "category": "volunteer",
       "condition": "good",
       "donor": "Matthew",
-      "stage": "storage",
+      "stage": "distributed",
       "history": [
         {
           "stage": "intake",
@@ -309,9 +309,17 @@
           "location": "Volunteer Section",
           "by": "Donation Station",
           "notes": ""
+        },
+        {
+          "stage": "distributed",
+          "timestamp": "2026-08-02T21:13:36Z",
+          "recipient": "Donation Station",
+          "by": "Donation Station",
+          "notes": ""
         }
       ],
-      "location": "Volunteer Section"
+      "location": "Volunteer Section",
+      "recipient": "Donation Station"
     }
   }
 }
