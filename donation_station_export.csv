@@ -1,0 +1,11 @@
+Name,Item ID,T.I.E.R.,Category,Condition,Stage,Donor,Recipient,Location,Date Received,Date Distributed,Received By,Distributed By,QC Result,Notes
+Winter Jacket,DS-0001,R — Resources,clothing,good,distributed,Jane Smith,Community Center,B-3,2026-05-06,2026-05-06,DeWayne,DeWayne,Pass,"Clean, lightly worn"
+Alps Mountaineering Lynx 1 Backpacking Tent,DS-0002,R — Resources,shelter,good,distributed,Donation Station,Matthew,Shelter Section,2026-08-02,2026-08-02,,Donation Station,Pass,Brand new
+Hanes Men's Underwear Boxers Pack,DS-0003,R — Resources,clothing,good,distributed,Donation Station,Matthew,Clothing Section,2026-08-02,2026-08-02,,Donation Station,Pass,New
+Heirloom Tomato Salad,DS-0004,R — Resources,food,good,distributed,Boka Catering,Matthew,Food Section,2026-08-02,2026-08-02,,Donation Station,Pass,
+20 Dollars,DS-0006,E — Energy,financial,good,distributed,Mary,Matthew,Financial Section,2026-08-02,2026-08-02,,Donation Station,Pass,$20 cash donation
+Cell Phone,DS-0007,R — Resources,technology,good,distributed,Donation Station,Matthew,Technology Section,2026-08-02,2026-08-02,,Donation Station,Pass,
+Toiletries,DS-0008,R — Resources,hygiene,good,distributed,Brave Space Alliance,Anonymous,Hygiene Section,2026-08-02,2026-08-02,,Donation Station,Pass,
+Time,DS-0009,T — Time,volunteer,good,distributed,Matthew,Donation Station,Volunteer Section,2026-08-02,2026-08-02,,Donation Station,Pass,
+Dog Walking,DS-0010,T — Time,volunteer,good,distributed,Donation Station,Josh,Volunteer Section,2026-08-02,2026-08-02,,Donation Station,Pass,
+AI Sunday,DS-0011,I — Intelligence,study session,good,distributed,Yes You Are,Unknown Future Recipients,Intelligence Section,2026-08-02,2026-08-02,,Donation Station,Pass,
