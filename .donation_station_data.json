@@ -1,5 +1,5 @@
 {
-  "next_id": 3,
+  "next_id": 4,
   "items": {
     "DS-0001": {
       "id": "DS-0001",
@@ -80,6 +80,22 @@
       ],
       "location": "Shelter Section",
       "recipient": "Matthew"
+    },
+    "DS-0003": {
+      "id": "DS-0003",
+      "name": "Hanes Men's Underwear Boxers Pack",
+      "category": "clothing",
+      "condition": "good",
+      "donor": "Donation Station",
+      "stage": "intake",
+      "history": [
+        {
+          "stage": "intake",
+          "timestamp": "2026-08-02T20:44:30Z",
+          "by": "",
+          "notes": "New"
+        }
+      ]
     }
   }
 }
