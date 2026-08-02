@@ -327,7 +327,7 @@
       "category": "volunteer",
       "condition": "good",
       "donor": "Donation Station",
-      "stage": "storage",
+      "stage": "distributed",
       "history": [
         {
           "stage": "intake",
@@ -349,9 +349,17 @@
           "location": "Volunteer Section",
           "by": "Donation Station",
           "notes": ""
+        },
+        {
+          "stage": "distributed",
+          "timestamp": "2026-08-02T21:18:01Z",
+          "recipient": "Josh",
+          "by": "Donation Station",
+          "notes": ""
         }
       ],
-      "location": "Volunteer Section"
+      "location": "Volunteer Section",
+      "recipient": "Josh"
     }
   }
 }
