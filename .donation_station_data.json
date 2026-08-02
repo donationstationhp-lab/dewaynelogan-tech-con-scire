@@ -327,7 +327,7 @@
       "category": "volunteer",
       "condition": "good",
       "donor": "Donation Station",
-      "stage": "qc",
+      "stage": "storage",
       "history": [
         {
           "stage": "intake",
@@ -342,8 +342,16 @@
           "passed": true,
           "notes": "Volunteer service accepted",
           "maintenance": ""
+        },
+        {
+          "stage": "storage",
+          "timestamp": "2026-08-02T21:17:16Z",
+          "location": "Volunteer Section",
+          "by": "Donation Station",
+          "notes": ""
         }
-      ]
+      ],
+      "location": "Volunteer Section"
     }
   }
 }
