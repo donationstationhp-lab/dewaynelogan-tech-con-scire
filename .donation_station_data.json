@@ -247,7 +247,7 @@
       "category": "hygiene",
       "condition": "good",
       "donor": "Brave Space Alliance",
-      "stage": "storage",
+      "stage": "distributed",
       "history": [
         {
           "stage": "intake",
@@ -269,9 +269,17 @@
           "location": "Hygiene Section",
           "by": "Donation Station",
           "notes": ""
+        },
+        {
+          "stage": "distributed",
+          "timestamp": "2026-08-02T21:09:56Z",
+          "recipient": "Anonymous",
+          "by": "Donation Station",
+          "notes": ""
         }
       ],
-      "location": "Hygiene Section"
+      "location": "Hygiene Section",
+      "recipient": "Anonymous"
     }
   }
 }
