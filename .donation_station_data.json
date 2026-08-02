@@ -287,13 +287,21 @@
       "category": "volunteer",
       "condition": "good",
       "donor": "Matthew",
-      "stage": "intake",
+      "stage": "qc",
       "history": [
         {
           "stage": "intake",
           "timestamp": "2026-08-02T21:12:14Z",
           "by": "",
           "notes": ""
+        },
+        {
+          "stage": "qc",
+          "timestamp": "2026-08-02T21:12:54Z",
+          "by": "Donation Station",
+          "passed": true,
+          "notes": "Volunteer time received and accepted",
+          "maintenance": ""
         }
       ]
     }
