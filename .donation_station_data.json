@@ -1,5 +1,5 @@
 {
-  "next_id": 7,
+  "next_id": 8,
   "items": {
     "DS-0001": {
       "id": "DS-0001",
@@ -200,6 +200,22 @@
       ],
       "location": "Financial Section",
       "recipient": "Matthew"
+    },
+    "DS-0007": {
+      "id": "DS-0007",
+      "name": "Cell Phone",
+      "category": "technology",
+      "condition": "good",
+      "donor": "Donation Station",
+      "stage": "intake",
+      "history": [
+        {
+          "stage": "intake",
+          "timestamp": "2026-08-02T21:01:31Z",
+          "by": "",
+          "notes": ""
+        }
+      ]
     }
   }
 }
