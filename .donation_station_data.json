@@ -87,7 +87,7 @@
       "category": "clothing",
       "condition": "good",
       "donor": "Donation Station",
-      "stage": "storage",
+      "stage": "distributed",
       "history": [
         {
           "stage": "intake",
@@ -109,9 +109,17 @@
           "location": "Clothing Section",
           "by": "Donation Station",
           "notes": ""
+        },
+        {
+          "stage": "distributed",
+          "timestamp": "2026-08-02T20:46:14Z",
+          "recipient": "Matthew",
+          "by": "Donation Station",
+          "notes": ""
         }
       ],
-      "location": "Clothing Section"
+      "location": "Clothing Section",
+      "recipient": "Matthew"
     }
   }
 }
