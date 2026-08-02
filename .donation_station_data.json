@@ -1,5 +1,5 @@
 {
-  "next_id": 4,
+  "next_id": 5,
   "items": {
     "DS-0001": {
       "id": "DS-0001",
@@ -120,6 +120,22 @@
       ],
       "location": "Clothing Section",
       "recipient": "Matthew"
+    },
+    "DS-0004": {
+      "id": "DS-0004",
+      "name": "Heirloom Tomato Salad",
+      "category": "food",
+      "condition": "good",
+      "donor": "Boka Catering",
+      "stage": "intake",
+      "history": [
+        {
+          "stage": "intake",
+          "timestamp": "2026-08-02T20:49:51Z",
+          "by": "",
+          "notes": ""
+        }
+      ]
     }
   }
 }
