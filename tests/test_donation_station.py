@@ -309,5 +309,123 @@ class TestOutput(DSTestCase):
         self.assertIn("Total items", captured.getvalue())
 
 
+# ── export ─────────────────────────────────────────────────────────────────────
+
+class TestExport(DSTestCase):
+    def setUp(self):
+        super().setUp()
+        self._csv = tempfile.mktemp(suffix=".csv")
+
+    def tearDown(self):
+        super().tearDown()
+        if os.path.exists(self._csv):
+            os.remove(self._csv)
+
+    def _full_item(self):
+        item = ds.intake("Jacket", "clothing", "good", "Jane")
+        item = ds.process_qc(item["id"], passed=True, by="Staff")
+        item = ds.store(item["id"], "A-1")
+        item = ds.distribute(item["id"], "Shelter")
+        return item
+
+    def test_returns_path_and_count(self):
+        ds.intake("Hat")
+        path, count = ds.export(self._csv)
+        self.assertEqual(path, self._csv)
+        self.assertEqual(count, 1)
+
+    def test_creates_file(self):
+        ds.intake("Hat")
+        ds.export(self._csv)
+        self.assertTrue(os.path.exists(self._csv))
+
+    def test_csv_has_header(self):
+        import csv
+        ds.intake("Hat")
+        ds.export(self._csv)
+        with open(self._csv) as f:
+            reader = csv.DictReader(f)
+            self.assertIn("Name",      reader.fieldnames)
+            self.assertIn("Item ID",   reader.fieldnames)
+            self.assertIn("T.I.E.R.", reader.fieldnames)
+            self.assertIn("Stage",     reader.fieldnames)
+
+    def test_csv_row_count_matches_items(self):
+        import csv
+        ds.intake("Hat")
+        ds.intake("Coat")
+        ds.intake("Boots")
+        ds.export(self._csv)
+        with open(self._csv) as f:
+            rows = list(csv.DictReader(f))
+        self.assertEqual(len(rows), 3)
+
+    def test_csv_name_and_id(self):
+        import csv
+        item = ds.intake("Scarf")
+        ds.export(self._csv)
+        with open(self._csv) as f:
+            row = list(csv.DictReader(f))[0]
+        self.assertEqual(row["Name"],    "Scarf")
+        self.assertEqual(row["Item ID"], item["id"])
+
+    def test_csv_tier_label(self):
+        import csv
+        ds.intake("Walk Dogs", category="volunteer")
+        ds.export(self._csv)
+        with open(self._csv) as f:
+            row = list(csv.DictReader(f))[0]
+        self.assertEqual(row["T.I.E.R."], "T — Time")
+
+    def test_csv_stage(self):
+        import csv
+        self._full_item()
+        ds.export(self._csv)
+        with open(self._csv) as f:
+            row = list(csv.DictReader(f))[0]
+        self.assertEqual(row["Stage"], "distributed")
+
+    def test_csv_qc_pass(self):
+        import csv
+        self._full_item()
+        ds.export(self._csv)
+        with open(self._csv) as f:
+            row = list(csv.DictReader(f))[0]
+        self.assertEqual(row["QC Result"], "Pass")
+
+    def test_csv_qc_fail(self):
+        import csv
+        item = ds.intake("Torn Shirt", "clothing")
+        ds.process_qc(item["id"], passed=False, maintenance="Needs patch")
+        ds.export(self._csv)
+        with open(self._csv) as f:
+            row = list(csv.DictReader(f))[0]
+        self.assertEqual(row["QC Result"], "Fail")
+
+    def test_csv_donor_and_recipient(self):
+        import csv
+        self._full_item()
+        ds.export(self._csv)
+        with open(self._csv) as f:
+            row = list(csv.DictReader(f))[0]
+        self.assertEqual(row["Donor"],     "Jane")
+        self.assertEqual(row["Recipient"], "Shelter")
+
+    def test_csv_location(self):
+        import csv
+        self._full_item()
+        ds.export(self._csv)
+        with open(self._csv) as f:
+            row = list(csv.DictReader(f))[0]
+        self.assertEqual(row["Location"], "A-1")
+
+    def test_default_path(self):
+        ds.intake("Hat")
+        path, _ = ds.export()
+        self.assertTrue(path.endswith("donation_station_export.csv"))
+        if os.path.exists(path):
+            os.remove(path)
+
+
 if __name__ == "__main__":
     unittest.main()
