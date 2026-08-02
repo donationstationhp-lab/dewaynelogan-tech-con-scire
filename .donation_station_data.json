@@ -127,13 +127,21 @@
       "category": "food",
       "condition": "good",
       "donor": "Boka Catering",
-      "stage": "intake",
+      "stage": "qc",
       "history": [
         {
           "stage": "intake",
           "timestamp": "2026-08-02T20:49:51Z",
           "by": "",
           "notes": ""
+        },
+        {
+          "stage": "qc",
+          "timestamp": "2026-08-02T20:50:20Z",
+          "by": "Donation Station",
+          "passed": true,
+          "notes": "Good condition, ready for distribution",
+          "maintenance": ""
         }
       ]
     }
