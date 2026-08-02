@@ -87,7 +87,7 @@
       "category": "clothing",
       "condition": "good",
       "donor": "Donation Station",
-      "stage": "qc",
+      "stage": "storage",
       "history": [
         {
           "stage": "intake",
@@ -102,8 +102,16 @@
           "passed": true,
           "notes": "New, no issues",
           "maintenance": ""
+        },
+        {
+          "stage": "storage",
+          "timestamp": "2026-08-02T20:45:30Z",
+          "location": "Clothing Section",
+          "by": "Donation Station",
+          "notes": ""
         }
-      ]
+      ],
+      "location": "Clothing Section"
     }
   }
 }
