@@ -377,7 +377,7 @@
       "tier": "I",
       "condition": "good",
       "donor": "Yes You Are",
-      "stage": "storage",
+      "stage": "distributed",
       "history": [
         {
           "stage": "intake",
@@ -399,9 +399,17 @@
           "location": "Intelligence Section",
           "by": "Donation Station",
           "notes": ""
+        },
+        {
+          "stage": "distributed",
+          "timestamp": "2026-08-02T21:31:12Z",
+          "recipient": "Unknown Future Recipients",
+          "by": "Donation Station",
+          "notes": ""
         }
       ],
-      "location": "Intelligence Section"
+      "location": "Intelligence Section",
+      "recipient": "Unknown Future Recipients"
     }
   }
 }
