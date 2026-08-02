@@ -167,7 +167,7 @@
       "category": "financial",
       "condition": "good",
       "donor": "Mary",
-      "stage": "storage",
+      "stage": "distributed",
       "history": [
         {
           "stage": "intake",
@@ -189,9 +189,17 @@
           "location": "Financial Section",
           "by": "Donation Station",
           "notes": ""
+        },
+        {
+          "stage": "distributed",
+          "timestamp": "2026-08-02T20:57:30Z",
+          "recipient": "Matthew",
+          "by": "Donation Station",
+          "notes": ""
         }
       ],
-      "location": "Financial Section"
+      "location": "Financial Section",
+      "recipient": "Matthew"
     }
   }
 }
