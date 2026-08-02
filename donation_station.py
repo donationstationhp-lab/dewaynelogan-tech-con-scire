@@ -39,6 +39,58 @@ CONDITIONS = ("good", "fair", "poor")
 WIDTH     = 70
 BAR       = "─" * WIDTH
 
+# ── T.I.E.R. classification ───────────────────────────────────────────────────
+#
+#   T — Time        : volunteer hours, presence, effort, service
+#   I — Intelligence: knowledge, skills, education, planning, strategy
+#   E — Energy      : financial, currency, funding — concentrated transferable energy
+#   R — Resources   : physical things that meet tangible needs
+#
+TIER_LABELS = {
+    "T": "Time",
+    "I": "Intelligence",
+    "E": "Energy",
+    "R": "Resources",
+}
+
+TIER_MAP = {
+    # T — Time
+    "volunteer":   "T",
+    "service":     "T",
+    "time":        "T",
+    # I — Intelligence
+    "knowledge":   "I",
+    "education":   "I",
+    "skills":      "I",
+    "training":    "I",
+    "planning":    "I",
+    "information": "I",
+    "strategy":    "I",
+    "data":        "I",
+    # E — Energy
+    "financial":   "E",
+    "money":       "E",
+    "currency":    "E",
+    "funding":     "E",
+    "grant":       "E",
+    # R — Resources (default for physical goods)
+    "food":        "R",
+    "clothing":    "R",
+    "shelter":     "R",
+    "technology":  "R",
+    "hygiene":     "R",
+    "household":   "R",
+    "electronics": "R",
+    "tools":       "R",
+    "equipment":   "R",
+    "general":     "R",
+}
+
+
+def classify_tier(category):
+    """Return the T.I.E.R. letter for a given category. Defaults to R."""
+    return TIER_MAP.get(category.lower().strip(), "R")
+
 
 def _now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -65,12 +117,14 @@ def _next_id(db):
 # ── Core operations ───────────────────────────────────────────────────────────
 
 def intake(name, category="general", condition="good", donor="", notes="", by=""):
-    db   = _load()
+    db      = _load()
     item_id = _next_id(db)
+    tier    = classify_tier(category)
     item = {
         "id":        item_id,
         "name":      name,
         "category":  category,
+        "tier":      tier,
         "condition": condition,
         "donor":     donor,
         "stage":     "intake",
@@ -167,19 +221,23 @@ def report():
     db    = _load()
     items = list(db["items"].values())
     total = len(items)
-    by_stage = {s: 0 for s in STAGES}
+    by_stage    = {s: 0 for s in STAGES}
     by_category = {}
+    by_tier     = {"T": 0, "I": 0, "E": 0, "R": 0}
     maintenance_pending = 0
     for item in items:
         by_stage[item["stage"]] = by_stage.get(item["stage"], 0) + 1
         cat = item.get("category", "general")
         by_category[cat] = by_category.get(cat, 0) + 1
+        tier = item.get("tier") or classify_tier(cat)
+        by_tier[tier] = by_tier.get(tier, 0) + 1
         if item.get("maintenance_needed") and item["stage"] != "distributed":
             maintenance_pending += 1
     return {
         "total":               total,
         "by_stage":            by_stage,
         "by_category":         by_category,
+        "by_tier":             by_tier,
         "maintenance_pending": maintenance_pending,
     }
 
@@ -231,11 +289,13 @@ def _fmt_event(event):
 
 
 def print_item(item, header="ITEM"):
+    tier      = item.get("tier") or classify_tier(item.get("category", "general"))
+    tier_name = TIER_LABELS.get(tier, tier)
     print(f"\n{BAR}")
     print(f"  {header}  —  {item['id']}  |  {item['name']}")
-    print(f"  Category: {item['category']}  |  Condition: {item['condition']}"
-          + (f"  |  Donor: {item['donor']}" if item.get('donor') else ""))
-    print(f"  Current Stage: {STAGE_LABELS.get(item['stage'], item['stage'].upper())}")
+    print(f"  Category: {item['category']}  |  T.I.E.R.: {tier} — {tier_name}"
+          + (f"  |  Condition: {item['condition']}" if item.get('condition') else ""))
+    print(f"  Donor: {item.get('donor', '—')}  |  Stage: {STAGE_LABELS.get(item['stage'], item['stage'].upper())}")
     if item.get("location"):
         print(f"  Location: {item['location']}")
     if item.get("maintenance_needed"):
@@ -252,11 +312,14 @@ def print_list(items):
         print("  No items found.")
         return
     print(f"\n{BAR}")
-    print(f"  {'ID':<10}  {'NAME':<24}  {'STAGE':<14}  {'CATEGORY'}")
+    print(f"  {'ID':<10}  {'NAME':<22}  {'TIER':<16}  {'STAGE':<14}  {'CATEGORY'}")
     print(BAR)
     for item in items:
-        stage = STAGE_LABELS.get(item["stage"], item["stage"])[:13]
-        print(f"  {item['id']:<10}  {item['name'][:24]:<24}  {stage:<14}  {item.get('category','')}")
+        stage     = STAGE_LABELS.get(item["stage"], item["stage"])[:13]
+        tier      = item.get("tier") or classify_tier(item.get("category", "general"))
+        tier_name = TIER_LABELS.get(tier, tier)
+        tier_col  = f"{tier} — {tier_name}"
+        print(f"  {item['id']:<10}  {item['name'][:22]:<22}  {tier_col:<16}  {stage:<14}  {item.get('category','')}")
     print()
 
 
@@ -265,15 +328,27 @@ def print_report(r):
     print(f"  DONATION STATION  —  REPORT")
     print(BAR)
     print(f"\n  Total items:  {r['total']}")
+
+    print(f"\n  T.I.E.R. Breakdown:")
+    for letter in ("T", "I", "E", "R"):
+        count     = r["by_tier"].get(letter, 0)
+        tier_name = TIER_LABELS[letter]
+        bar       = "█" * count
+        print(f"    {letter} — {tier_name:<14}  {count:>4}  {bar}")
+
     print(f"\n  By Stage:")
     for stage in STAGES:
         count = r["by_stage"].get(stage, 0)
         bar   = "█" * count
         print(f"    {STAGE_LABELS[stage]:<16}  {count:>4}  {bar}")
+
     if r["by_category"]:
         print(f"\n  By Category:")
         for cat, count in sorted(r["by_category"].items(), key=lambda x: -x[1]):
-            print(f"    {cat:<20}  {count}")
+            tier      = classify_tier(cat)
+            tier_name = TIER_LABELS.get(tier, tier)
+            print(f"    {cat:<20}  {count}  [{tier} — {tier_name}]")
+
     if r["maintenance_pending"]:
         print(f"\n  Maintenance pending:  {r['maintenance_pending']}")
     print()

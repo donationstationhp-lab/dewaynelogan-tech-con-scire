@@ -39,7 +39,8 @@
         }
       ],
       "location": "B-3",
-      "recipient": "Community Center"
+      "recipient": "Community Center",
+      "tier": "R"
     },
     "DS-0002": {
       "id": "DS-0002",
@@ -79,7 +80,8 @@
         }
       ],
       "location": "Shelter Section",
-      "recipient": "Matthew"
+      "recipient": "Matthew",
+      "tier": "R"
     },
     "DS-0003": {
       "id": "DS-0003",
@@ -119,7 +121,8 @@
         }
       ],
       "location": "Clothing Section",
-      "recipient": "Matthew"
+      "recipient": "Matthew",
+      "tier": "R"
     },
     "DS-0004": {
       "id": "DS-0004",
@@ -159,7 +162,8 @@
         }
       ],
       "location": "Food Section",
-      "recipient": "Matthew"
+      "recipient": "Matthew",
+      "tier": "R"
     },
     "DS-0006": {
       "id": "DS-0006",
@@ -199,7 +203,8 @@
         }
       ],
       "location": "Financial Section",
-      "recipient": "Matthew"
+      "recipient": "Matthew",
+      "tier": "E"
     },
     "DS-0007": {
       "id": "DS-0007",
@@ -239,7 +244,8 @@
         }
       ],
       "location": "Technology Section",
-      "recipient": "Matthew"
+      "recipient": "Matthew",
+      "tier": "R"
     },
     "DS-0008": {
       "id": "DS-0008",
@@ -279,7 +285,8 @@
         }
       ],
       "location": "Hygiene Section",
-      "recipient": "Anonymous"
+      "recipient": "Anonymous",
+      "tier": "R"
     },
     "DS-0009": {
       "id": "DS-0009",
@@ -319,7 +326,8 @@
         }
       ],
       "location": "Volunteer Section",
-      "recipient": "Donation Station"
+      "recipient": "Donation Station",
+      "tier": "T"
     },
     "DS-0010": {
       "id": "DS-0010",
@@ -359,7 +367,8 @@
         }
       ],
       "location": "Volunteer Section",
-      "recipient": "Josh"
+      "recipient": "Josh",
+      "tier": "T"
     }
   }
 }

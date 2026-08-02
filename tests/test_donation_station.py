@@ -201,6 +201,80 @@ class TestListAndReport(DSTestCase):
         r = ds.report()
         self.assertEqual(r["maintenance_pending"], 1)
 
+    def test_report_by_tier(self):
+        ds.intake("Walk Dogs", category="volunteer")
+        ds.intake("Cash",      category="financial")
+        r = ds.report()
+        self.assertIn("by_tier", r)
+        self.assertGreater(r["by_tier"]["T"], 0)
+        self.assertGreater(r["by_tier"]["E"], 0)
+
+
+# ── T.I.E.R. ──────────────────────────────────────────────────────────────────
+
+class TestTIER(DSTestCase):
+    def test_classify_time(self):
+        self.assertEqual(ds.classify_tier("volunteer"), "T")
+        self.assertEqual(ds.classify_tier("service"),   "T")
+        self.assertEqual(ds.classify_tier("time"),      "T")
+
+    def test_classify_intelligence(self):
+        self.assertEqual(ds.classify_tier("knowledge"),  "I")
+        self.assertEqual(ds.classify_tier("education"),  "I")
+        self.assertEqual(ds.classify_tier("training"),   "I")
+
+    def test_classify_energy(self):
+        self.assertEqual(ds.classify_tier("financial"), "E")
+        self.assertEqual(ds.classify_tier("funding"),   "E")
+        self.assertEqual(ds.classify_tier("grant"),     "E")
+
+    def test_classify_resources(self):
+        self.assertEqual(ds.classify_tier("food"),       "R")
+        self.assertEqual(ds.classify_tier("clothing"),   "R")
+        self.assertEqual(ds.classify_tier("shelter"),    "R")
+        self.assertEqual(ds.classify_tier("technology"), "R")
+        self.assertEqual(ds.classify_tier("hygiene"),    "R")
+
+    def test_classify_unknown_defaults_to_resources(self):
+        self.assertEqual(ds.classify_tier("unknown_category"), "R")
+
+    def test_case_insensitive(self):
+        self.assertEqual(ds.classify_tier("Volunteer"), "T")
+        self.assertEqual(ds.classify_tier("FINANCIAL"), "E")
+
+    def test_intake_assigns_tier_automatically(self):
+        item = ds.intake("Dog Walking", category="volunteer")
+        self.assertEqual(item["tier"], "T")
+
+        item2 = ds.intake("Cash", category="financial")
+        self.assertEqual(item2["tier"], "E")
+
+        item3 = ds.intake("Jacket", category="clothing")
+        self.assertEqual(item3["tier"], "R")
+
+    def test_print_item_shows_tier(self):
+        item = ds.intake("Dog Walking", category="volunteer")
+        captured = StringIO()
+        with patch("sys.stdout", captured):
+            ds.print_item(item)
+        out = captured.getvalue()
+        self.assertIn("T.I.E.R.", out)
+        self.assertIn("T — Time", out)
+
+    def test_print_report_shows_tier_breakdown(self):
+        ds.intake("Walk", category="volunteer")
+        ds.intake("Cash", category="financial")
+        ds.intake("Food", category="food")
+        r = ds.report()
+        captured = StringIO()
+        with patch("sys.stdout", captured):
+            ds.print_report(r)
+        out = captured.getvalue()
+        self.assertIn("T.I.E.R.", out)
+        self.assertIn("Time",      out)
+        self.assertIn("Energy",    out)
+        self.assertIn("Resources", out)
+
 
 # ── output ─────────────────────────────────────────────────────────────────────
 
