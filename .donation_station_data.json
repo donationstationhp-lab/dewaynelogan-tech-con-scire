@@ -47,13 +47,21 @@
       "category": "shelter",
       "condition": "good",
       "donor": "Donation Station",
-      "stage": "intake",
+      "stage": "qc",
       "history": [
         {
           "stage": "intake",
           "timestamp": "2026-08-02T20:38:09Z",
           "by": "",
           "notes": "Brand new"
+        },
+        {
+          "stage": "qc",
+          "timestamp": "2026-08-02T20:39:33Z",
+          "by": "Donation Station",
+          "passed": true,
+          "notes": "Brand new, no issues",
+          "maintenance": ""
         }
       ]
     }
