@@ -56,8 +56,11 @@ def _cache_path(key):
 def cache_get(key):
     p = _cache_path(key)
     if os.path.exists(p):
-        with open(p) as f:
-            return json.load(f)
+        try:
+            with open(p) as f:
+                return json.load(f)
+        except (json.JSONDecodeError, OSError):
+            return None  # treat corrupted/unreadable cache files as a miss
     return None
 
 
@@ -85,7 +88,7 @@ def cache_clear():
 
 
 def _cache_key(prefix, text):
-    digest = hashlib.sha1(text.lower().encode()).hexdigest()[:12]
+    digest = hashlib.sha1(text.strip().lower().encode()).hexdigest()[:12]
     return f"{prefix}_{digest}"
 
 
@@ -111,8 +114,10 @@ def fetch(url):
             "Accept-Language": "en-US,en;q=0.9",
         },
     )
-    resp.raise_for_status()
+    # Stamp the timer after the request is sent, regardless of status, so that
+    # error responses (4xx/5xx) still advance the delay window.
     _last_req_time = time.time()
+    resp.raise_for_status()
     return resp.text
 
 
@@ -145,17 +150,21 @@ def _parse_next_data(html):
 
     props = data.get("props", {}).get("pageProps", {})
 
-    # The JSON structure differs between search results and individual word pages
-    raw = (
-        props.get("entries")
-        or props.get("words")
-        or props.get("searchResults")
-        or props.get("results")
-        or []
-    )
-    if not raw:
-        return None
+    # The JSON structure differs between search results and individual word pages.
+    # We probe each candidate key; if none is present the page structure is
+    # unrecognised and we return None so the HTML fallback can try.
+    raw = None
+    for candidate in ("entries", "words", "searchResults", "results"):
+        if candidate in props:
+            raw = props[candidate]
+            break
 
+    if raw is None:
+        return None  # embed present but no recognised result key → try HTML
+
+    # raw is now a list — possibly empty (authoritative zero-hit page).
+    # Return [] rather than None so parse_entries() does NOT fall back to HTML,
+    # which could pick up navigation links as spurious entries.
     entries = []
     for item in raw:
         if not isinstance(item, dict):
@@ -169,7 +178,7 @@ def _parse_next_data(html):
         )
         entries.append({"word": word, "etymology": _strip_html(body)})
 
-    return entries if entries else None
+    return entries
 
 
 def _parse_html(html):
@@ -211,7 +220,10 @@ def _parse_html(html):
 
 def parse_entries(html):
     """Try Next.js JSON embed first; fall back to HTML scraping."""
-    return _parse_next_data(html) or _parse_html(html)
+    next_data = _parse_next_data(html)
+    if next_data is not None:   # None = no usable embed; [] = authoritative empty
+        return next_data
+    return _parse_html(html)
 
 
 def parse_related(html, exclude=""):
@@ -275,20 +287,31 @@ def lookup(word, offline=False, no_cache=False):
     return result, False
 
 
+_EXPLORE_BRANCHING = 3   # related words to follow at each hop
+_EXPLORE_MAX       = 15  # hard cap on total words fetched per explore call
+
+
 def explore(word, depth=1, offline=False, no_cache=False):
     """
-    Look up `word`, then (when depth > 0) also fetch the first few related
-    words so the caller can display a richer picture.
+    Look up `word`, then perform a BFS of `depth` hops through related words.
+    Each hop follows up to _EXPLORE_BRANCHING new related words.
     Returns an ordered dict  {word: result_dict, ...}.
     """
     root, _ = lookup(word, offline=offline, no_cache=no_cache)
     explored = {word: root}
+    frontier = list(root.get("related", [])[:_EXPLORE_BRANCHING])
 
-    if depth > 0:
-        for rel in root.get("related", [])[:3]:
-            if rel not in explored:
-                result, _ = lookup(rel, offline=offline, no_cache=no_cache)
-                explored[rel] = result
+    for _ in range(depth):
+        if not frontier or len(explored) >= _EXPLORE_MAX:
+            break
+        next_frontier = []
+        for rel in frontier:
+            if rel in explored or len(explored) >= _EXPLORE_MAX:
+                continue
+            result, _ = lookup(rel, offline=offline, no_cache=no_cache)
+            explored[rel] = result
+            next_frontier.extend(result.get("related", [])[:_EXPLORE_BRANCHING])
+        frontier = [w for w in next_frontier if w not in explored]
 
     return explored
 
@@ -643,6 +666,8 @@ def main():
 
     except requests.HTTPError as exc:
         sys.exit(f"HTTP error: {exc}")
+    except requests.TooManyRedirects:
+        sys.exit("Too many redirects. The site may have moved or be blocking requests.")
     except requests.ConnectionError:
         sys.exit("Network error. Check your connection or use --offline.")
     except requests.Timeout:
