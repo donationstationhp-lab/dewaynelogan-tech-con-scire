@@ -50,13 +50,27 @@ Usage:
   python donation_station.py maintenance
   python donation_station.py maintain DS-0001 --due 2026-08-10 --by "Staff"
   python donation_station.py maintain DS-0001 --complete --notes "Zipper fixed" --by "Staff"
+
+  # Perishables (Door to Door Organics-style)
+  python donation_station.py intake "Apples" --category food --expiry 2026-08-05 --zone refrigerated --weight "10 lbs" --origin "Green Acres Farm"
+  python donation_station.py expiring
+  python donation_station.py expiring --days 5
+
+  # Routes & delivery manifests (Door to Door Organics-style)
+  python donation_station.py route add "North Loop" --description "North side residential stops"
+  python donation_station.py route stop "North Loop" "Community Center" --address "123 Main St" --notes "Side door"
+  python donation_station.py route list
+  python donation_station.py manifest "North Loop"
+
+  # Substitution notes on distribution
+  python donation_station.py distribute DS-0001 "Recipient" --substitution "Swapped apples for pears"
 """
 
 import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 try:
     import power_connection as _pc
@@ -68,8 +82,9 @@ except ImportError:
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          ".donation_station_data.json")
 
-STAGES    = ("intake", "qc", "storage", "distributed")
+STAGES     = ("intake", "qc", "storage", "distributed")
 CONDITIONS = ("good", "fair", "poor")
+TEMP_ZONES = ("ambient", "refrigerated", "frozen")
 WIDTH     = 70
 BAR       = "─" * WIDTH
 
@@ -155,8 +170,9 @@ def _load():
             db = json.load(f)
         db.setdefault("next_lot", 1)
         db.setdefault("locations", {})
+        db.setdefault("routes", {})
         return db
-    return {"next_id": 1, "next_lot": 1, "items": {}, "locations": {}}
+    return {"next_id": 1, "next_lot": 1, "items": {}, "locations": {}, "routes": {}}
 
 
 def _save(db):
@@ -178,13 +194,16 @@ def _next_lot_id(db):
 
 # ── Core operations ───────────────────────────────────────────────────────────
 
-def intake(name, category="general", condition="good", donor="", notes="", by="", lot=""):
+def intake(name, category="general", condition="good", donor="", notes="", by="", lot="",
+           expiry_date="", temp_zone="ambient", weight="", origin=""):
     db      = _load()
     item_id = _next_id(db)
     tier    = classify_tier(category)
     ts      = _now()
     if not lot:
         lot = _next_lot_id(db)
+    if temp_zone and temp_zone not in TEMP_ZONES:
+        raise ValueError(f"temp_zone must be one of: {', '.join(TEMP_ZONES)}")
     item = {
         "id":        item_id,
         "lot":       lot,
@@ -203,6 +222,16 @@ def intake(name, category="general", condition="good", donor="", notes="", by=""
             }
         ],
     }
+    if expiry_date:
+        item["expiry_date"] = expiry_date
+    if temp_zone and temp_zone != "ambient":
+        item["temp_zone"] = temp_zone
+    elif temp_zone == "ambient":
+        item["temp_zone"] = "ambient"
+    if weight:
+        item["weight"] = weight
+    if origin:
+        item["origin"] = origin
     pd = _power_date(ts)
     if pd:
         item["power_date"] = pd
@@ -240,6 +269,15 @@ def store(item_id, location, by="", notes=""):
     qc_event = next((e for e in reversed(item["history"]) if e["stage"] == "qc"), None)
     if qc_event and not qc_event.get("passed", True):
         raise ValueError(f"{item_id} did not pass QC. Complete maintenance before storing.")
+    loc_data = db.get("locations", {}).get(location)
+    if loc_data and loc_data.get("temp_zone") and item.get("temp_zone"):
+        loc_zone  = loc_data["temp_zone"]
+        item_zone = item["temp_zone"]
+        if loc_zone != item_zone:
+            raise ValueError(
+                f"Temperature zone mismatch: item requires '{item_zone}' "
+                f"but location {location} is '{loc_zone}'."
+            )
     event = {
         "stage":     "storage",
         "timestamp": _now(),
@@ -256,7 +294,7 @@ def store(item_id, location, by="", notes=""):
     return item
 
 
-def distribute(item_id, recipient, by="", notes=""):
+def distribute(item_id, recipient, by="", notes="", substitution=""):
     db   = _load()
     item = _get_item(db, item_id)
     if item["stage"] != "storage":
@@ -268,6 +306,8 @@ def distribute(item_id, recipient, by="", notes=""):
         "by":        by,
         "notes":     notes,
     }
+    if substitution:
+        event["substitution"] = substitution
     loc = item.get("location")
     item["history"].append(event)
     item["stage"]     = "distributed"
@@ -333,15 +373,20 @@ def lots_list():
 
 # ── Location system (Target) ──────────────────────────────────────────────────
 
-def add_location(code, zone="", capacity=0, description=""):
+def add_location(code, zone="", capacity=0, description="", temp_zone=""):
     db = _load()
-    db["locations"][code] = {
+    if temp_zone and temp_zone not in TEMP_ZONES:
+        raise ValueError(f"temp_zone must be one of: {', '.join(TEMP_ZONES)}")
+    loc = {
         "code":        code,
         "zone":        zone,
         "capacity":    capacity,
         "description": description,
         "count":       0,
     }
+    if temp_zone:
+        loc["temp_zone"] = temp_zone
+    db["locations"][code] = loc
     _save(db)
     return db["locations"][code]
 
@@ -367,16 +412,51 @@ def capacity_report():
 # ── FIFO & pick lists (Target/Dart) ──────────────────────────────────────────
 
 def fifo_list():
-    """Storage items sorted oldest-intake-first (FIFO)."""
+    """Storage items sorted expiry-first (perishables soonest), then intake-date FIFO."""
     items = list_items("storage")
+
     def _intake_ts(item):
         ev = next((e for e in item["history"] if e["stage"] == "intake"), {})
         return ev.get("timestamp", "")
-    return sorted(items, key=_intake_ts)
+
+    def _sort_key(item):
+        expiry = item.get("expiry_date", "")
+        if expiry:
+            return (0, expiry, _intake_ts(item))
+        return (1, "", _intake_ts(item))
+
+    return sorted(items, key=_sort_key)
+
+
+def expiring(days=2):
+    """Return storage items expiring within *days* days, with urgency flags."""
+    items = list_items("storage")
+    now   = datetime.now(timezone.utc)
+    result = []
+    for item in items:
+        expiry = item.get("expiry_date", "")
+        if not expiry:
+            continue
+        try:
+            exp_dt    = datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            days_left = (exp_dt.date() - now.date()).days
+        except ValueError:
+            continue
+        if days_left <= days:
+            if days_left < 0:
+                urgency = "expired"
+            elif days_left == 0:
+                urgency = "critical"
+            elif days_left == 1:
+                urgency = "warning"
+            else:
+                urgency = "watch"
+            result.append({**item, "_days_left": days_left, "_urgency": urgency})
+    return sorted(result, key=lambda x: x["expiry_date"])
 
 
 def pick_list(recipient=""):
-    """Generate a pick list from storage items (FIFO order)."""
+    """Generate a pick list from storage items (expiry-first FIFO order)."""
     items = fifo_list()
     picks = []
     for i, item in enumerate(items, 1):
@@ -390,14 +470,81 @@ def pick_list(recipient=""):
             "tier":      item.get("tier", "R"),
             "category":  item.get("category", ""),
             "intake_ts": ev.get("timestamp", "")[:10],
+            "expiry":    item.get("expiry_date", ""),
+            "temp_zone": item.get("temp_zone", "ambient"),
         })
     return {"recipient": recipient, "picks": picks, "total": len(picks)}
+
+
+# ── Routes & manifests (Door to Door Organics) ───────────────────────────────
+
+def add_route(name, description=""):
+    db = _load()
+    if name in db["routes"]:
+        raise ValueError(f"Route '{name}' already exists.")
+    db["routes"][name] = {"name": name, "description": description, "stops": []}
+    _save(db)
+    return db["routes"][name]
+
+
+def add_route_stop(route_name, recipient, address="", notes=""):
+    db = _load()
+    if route_name not in db["routes"]:
+        raise KeyError(f"Route '{route_name}' not found.")
+    stop = {"recipient": recipient, "address": address, "notes": notes}
+    db["routes"][route_name]["stops"].append(stop)
+    _save(db)
+    return db["routes"][route_name]
+
+
+def list_routes():
+    db = _load()
+    return list(db.get("routes", {}).values())
+
+
+def generate_manifest(route_name):
+    db = _load()
+    if route_name not in db.get("routes", {}):
+        raise KeyError(f"Route '{route_name}' not found.")
+    route   = db["routes"][route_name]
+    items   = fifo_list()
+    now     = datetime.now(timezone.utc)
+
+    urgent, cold, normal = [], [], []
+    for item in items:
+        expiry = item.get("expiry_date", "")
+        zone   = item.get("temp_zone", "ambient")
+        if expiry:
+            try:
+                days_left = (datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=timezone.utc).date()
+                             - now.date()).days
+            except ValueError:
+                days_left = 999
+            item = {**item, "_days_left": days_left,
+                    "_urgency": "expired" if days_left < 0
+                                else "critical" if days_left == 0
+                                else "warning" if days_left == 1
+                                else "watch"}
+            urgent.append(item)
+        elif zone in ("refrigerated", "frozen"):
+            cold.append(item)
+        else:
+            normal.append(item)
+
+    return {
+        "route":        route_name,
+        "description":  route.get("description", ""),
+        "stops":        route.get("stops", []),
+        "urgent":       urgent,
+        "cold":         cold,
+        "normal":       normal,
+        "generated_at": _now(),
+    }
 
 
 # ── Throughput & QC metrics (Dart) ───────────────────────────────────────────
 
 def metrics():
-    from datetime import datetime, timezone, timedelta
     db    = _load()
     items = list(db["items"].values())
     now   = datetime.now(timezone.utc)
@@ -565,10 +712,15 @@ def export(path=None):
             "Donor":            item.get("donor", ""),
             "Recipient":        item.get("recipient", ""),
             "Location":         item.get("location", ""),
+            "Temp Zone":        item.get("temp_zone", ""),
+            "Expiry Date":      item.get("expiry_date", ""),
+            "Weight":           item.get("weight", ""),
+            "Origin":           item.get("origin", ""),
             "Date Received":    intake.get("timestamp", "")[:10],
             "Date Distributed": dist.get("timestamp", "")[:10],
             "Received By":      intake.get("by", ""),
             "Distributed By":   dist.get("by", ""),
+            "Substitution":     dist.get("substitution", ""),
             "QC Result":        "Pass" if qc.get("passed") else ("Fail" if qc else ""),
             "Power Root":       pd.get("root", ""),
             "Power Born":       pd.get("born", ""),
@@ -627,9 +779,30 @@ def _fmt_event(event):
         lines.append(f"       Location: {event.get('location', '')}")
     if s == "distributed":
         lines.append(f"       Recipient: {event.get('recipient', '')}")
+        if event.get("substitution"):
+            lines.append(f"       Substitution: {event['substitution']}")
     if event.get("notes"):
         lines.append(f"       Notes: {event['notes']}")
     return "\n".join(lines)
+
+
+def _urgency_flag(item):
+    """Return an urgency string for an item with expiry_date, or empty string."""
+    expiry = item.get("expiry_date", "")
+    if not expiry:
+        return ""
+    try:
+        days_left = (datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=timezone.utc).date()
+                     - datetime.now(timezone.utc).date()).days
+    except ValueError:
+        return ""
+    if days_left < 0:
+        return " !! EXPIRED"
+    if days_left == 0:
+        return " !! EXPIRES TODAY"
+    if days_left == 1:
+        return " ! expires tomorrow"
+    return f" (expires in {days_left}d)"
 
 
 def print_item(item, header="ITEM"):
@@ -642,6 +815,17 @@ def print_item(item, header="ITEM"):
     print(f"  Lot: {item.get('lot', '—')}  |  Donor: {item.get('donor', '—')}  |  Stage: {STAGE_LABELS.get(item['stage'], item['stage'].upper())}")
     if item.get("location"):
         print(f"  Location: {item['location']}")
+    if item.get("temp_zone") or item.get("expiry_date") or item.get("weight") or item.get("origin"):
+        parts = []
+        if item.get("temp_zone"):
+            parts.append(f"Temp: {item['temp_zone']}")
+        if item.get("expiry_date"):
+            parts.append(f"Expiry: {item['expiry_date']}{_urgency_flag(item)}")
+        if item.get("weight"):
+            parts.append(f"Weight: {item['weight']}")
+        if item.get("origin"):
+            parts.append(f"Origin: {item['origin']}")
+        print("  " + "  |  ".join(parts))
     if item.get("maintenance_needed"):
         print(f"  Maintenance: {item['maintenance_needed']}")
     if item.get("power_date"):
@@ -724,15 +908,71 @@ def print_picklist(pl):
     recipient = pl.get("recipient") or "All"
     print(f"\n{BAR}")
     print(f"  PICK LIST  —  {recipient}")
-    print(f"  {len(pl['picks'])} item(s)  |  FIFO order (oldest intake first)")
+    print(f"  {len(pl['picks'])} item(s)  |  perishables first, then FIFO")
     print(BAR)
     if not pl["picks"]:
         print("  No items in storage.\n")
         return
-    print(f"\n  {'#':<4}  {'ID':<10}  {'LOT':<10}  {'LOCATION':<16}  {'INTAKE':<12}  NAME")
-    print(f"  {'─'*4}  {'─'*10}  {'─'*10}  {'─'*16}  {'─'*12}  {'─'*20}")
+    print(f"\n  {'#':<4}  {'ID':<10}  {'LOT':<10}  {'LOCATION':<14}  {'EXPIRY':<12}  {'ZONE':<12}  NAME")
+    print(f"  {'─'*4}  {'─'*10}  {'─'*10}  {'─'*14}  {'─'*12}  {'─'*12}  {'─'*20}")
     for p in pl["picks"]:
-        print(f"  {p['pick']:<4}  {p['id']:<10}  {p['lot']:<10}  {p['location']:<16}  {p['intake_ts']:<12}  {p['name'][:28]}")
+        print(f"  {p['pick']:<4}  {p['id']:<10}  {p['lot']:<10}  {p['location']:<14}  "
+              f"{p['expiry'] or '—':<12}  {p['temp_zone']:<12}  {p['name'][:24]}")
+    print()
+
+
+def print_expiring(items, days):
+    URGENCY_LABEL = {
+        "expired":  "!! EXPIRED",
+        "critical": "!! TODAY",
+        "warning":  "!  TOMORROW",
+        "watch":    "   SOON",
+    }
+    print(f"\n{BAR}")
+    print(f"  EXPIRING — items expiring within {days} day(s)")
+    print(BAR)
+    if not items:
+        print(f"  No items expiring within {days} day(s).\n")
+        return
+    print(f"\n  {'ID':<10}  {'NAME':<24}  {'EXPIRY':<12}  {'ZONE':<12}  {'LOCATION':<14}  STATUS")
+    print(f"  {'─'*10}  {'─'*24}  {'─'*12}  {'─'*12}  {'─'*14}  {'─'*12}")
+    for item in items:
+        urgency = URGENCY_LABEL.get(item.get("_urgency", "watch"), "")
+        print(f"  {item['id']:<10}  {item['name'][:24]:<24}  {item.get('expiry_date',''):<12}  "
+              f"{item.get('temp_zone','ambient'):<12}  {item.get('location','—'):<14}  {urgency}")
+    print()
+
+
+def print_manifest(manifest):
+    print(f"\n{BAR}")
+    print(f"  DELIVERY MANIFEST  —  {manifest['route']}")
+    if manifest.get("description"):
+        print(f"  {manifest['description']}")
+    print(f"  Generated: {manifest['generated_at'][:16].replace('T','  ')}")
+    print(BAR)
+
+    stops = manifest.get("stops", [])
+    if stops:
+        print(f"\n  STOPS ({len(stops)}):")
+        for i, stop in enumerate(stops, 1):
+            print(f"    {i}. {stop['recipient']}")
+            if stop.get("address"):
+                print(f"       {stop['address']}")
+            if stop.get("notes"):
+                print(f"       Note: {stop['notes']}")
+
+    for section, label in [("urgent", "PERISHABLES / URGENT"), ("cold", "COLD CHAIN"), ("normal", "AMBIENT / DRY")]:
+        items = manifest.get(section, [])
+        if not items:
+            continue
+        print(f"\n  {label}  ({len(items)} item(s))")
+        print(f"  {'─'*66}")
+        for item in items:
+            urgency = item.get("_urgency", "")
+            flag    = {"expired": "!! EXPIRED", "critical": "!! TODAY",
+                       "warning": "!  TOMORROW", "watch": "   SOON"}.get(urgency, "")
+            expiry  = f"  exp:{item['expiry_date']}" if item.get("expiry_date") else ""
+            print(f"    {item['id']}  {item['name'][:30]:<30}  {item.get('location','—'):<12}  {flag}{expiry}")
     print()
 
 
@@ -822,8 +1062,15 @@ def main():
             p.add_argument("--notes",     default="")
             p.add_argument("--by",        default="")
             p.add_argument("--lot",       default="")
+            p.add_argument("--expiry",    default="", dest="expiry_date",
+                           metavar="YYYY-MM-DD", help="expiry date for perishables")
+            p.add_argument("--zone",      default="ambient", choices=TEMP_ZONES,
+                           dest="temp_zone", help="temperature zone")
+            p.add_argument("--weight",    default="", help="weight (e.g. '5 lbs')")
+            p.add_argument("--origin",    default="", help="farm or supplier origin")
             a    = p.parse_args(rest)
-            item = intake(a.name, a.category, a.condition, a.donor, a.notes, a.by, a.lot)
+            item = intake(a.name, a.category, a.condition, a.donor, a.notes, a.by, a.lot,
+                          a.expiry_date, a.temp_zone, a.weight, a.origin)
             if use_json:
                 print(json.dumps(item, indent=2))
             else:
@@ -862,10 +1109,12 @@ def main():
             p = argparse.ArgumentParser(prog="donation_station distribute")
             p.add_argument("item_id")
             p.add_argument("recipient")
-            p.add_argument("--by",    default="")
-            p.add_argument("--notes", default="")
+            p.add_argument("--by",           default="")
+            p.add_argument("--notes",        default="")
+            p.add_argument("--substitution", default="",
+                           help="substitution note (item swapped for another)")
             a    = p.parse_args(rest)
-            item = distribute(a.item_id, a.recipient, a.by, a.notes)
+            item = distribute(a.item_id, a.recipient, a.by, a.notes, a.substitution)
             if use_json:
                 print(json.dumps(item, indent=2))
             else:
@@ -942,12 +1191,16 @@ def main():
                 p.add_argument("--zone",        default="")
                 p.add_argument("--capacity",    type=int, default=0)
                 p.add_argument("--description", default="")
+                p.add_argument("--temp-zone",   default="", dest="temp_zone",
+                               choices=list(TEMP_ZONES) + [""],
+                               help="temperature zone for perishable storage")
                 a   = p.parse_args(rest[1:])
-                loc = add_location(a.code, a.zone, a.capacity, a.description)
+                loc = add_location(a.code, a.zone, a.capacity, a.description, a.temp_zone)
                 if use_json:
                     print(json.dumps(loc, indent=2))
                 else:
-                    print(f"  Location {loc['code']} added  (zone={loc['zone']}, capacity={loc['capacity']})")
+                    tz_note = f", temp_zone={loc['temp_zone']}" if loc.get("temp_zone") else ""
+                    print(f"  Location {loc['code']} added  (zone={loc['zone']}, capacity={loc['capacity']}{tz_note})")
             elif sub == "list":
                 locs = list_locations()
                 if use_json:
@@ -1046,6 +1299,69 @@ def main():
                 print(json.dumps({"path": path, "count": n}))
             else:
                 print(f"  Exported {n} item(s) → {path}")
+
+        elif cmd == "expiring":
+            p = argparse.ArgumentParser(prog="donation_station expiring")
+            p.add_argument("--days", type=int, default=2,
+                           help="show items expiring within this many days (default 2)")
+            a     = p.parse_args(rest)
+            items = expiring(a.days)
+            if use_json:
+                print(json.dumps(items, indent=2))
+            else:
+                print_expiring(items, a.days)
+
+        elif cmd == "route":
+            if not rest:
+                sys.exit("Usage: donation_station.py route add <name> | stop <name> <recipient> | list")
+            sub = rest[0]
+            if sub == "add":
+                p = argparse.ArgumentParser(prog="donation_station route add")
+                p.add_argument("name")
+                p.add_argument("--description", default="")
+                a     = p.parse_args(rest[1:])
+                route = add_route(a.name, a.description)
+                if use_json:
+                    print(json.dumps(route, indent=2))
+                else:
+                    print(f"  Route '{route['name']}' created.")
+            elif sub == "stop":
+                p = argparse.ArgumentParser(prog="donation_station route stop")
+                p.add_argument("route_name")
+                p.add_argument("recipient")
+                p.add_argument("--address", default="")
+                p.add_argument("--notes",   default="")
+                a     = p.parse_args(rest[1:])
+                route = add_route_stop(a.route_name, a.recipient, a.address, a.notes)
+                if use_json:
+                    print(json.dumps(route, indent=2))
+                else:
+                    print(f"  Stop '{a.recipient}' added to route '{a.route_name}'.")
+            elif sub == "list":
+                routes = list_routes()
+                if use_json:
+                    print(json.dumps(routes, indent=2))
+                else:
+                    if not routes:
+                        print("  No routes defined.\n")
+                    else:
+                        print(f"\n{BAR}")
+                        print(f"  ROUTES")
+                        print(BAR)
+                        for r in routes:
+                            print(f"  {r['name']:<20}  {len(r.get('stops',[]))} stop(s)  {r.get('description','')}")
+                        print()
+            else:
+                sys.exit(f"Unknown route sub-command '{sub}'. Use: add | stop | list")
+
+        elif cmd == "manifest":
+            if not rest:
+                sys.exit("Usage: donation_station.py manifest <route-name>")
+            manifest = generate_manifest(rest[0])
+            if use_json:
+                print(json.dumps(manifest, indent=2))
+            else:
+                print_manifest(manifest)
 
         else:
             sys.exit(f"Unknown command '{cmd}'. Run without arguments for usage.")

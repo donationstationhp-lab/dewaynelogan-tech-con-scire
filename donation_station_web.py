@@ -6,6 +6,7 @@ Run:
   open http://localhost:5000
 """
 
+from datetime import datetime, timezone
 from flask import Flask, redirect, render_template_string, request, url_for
 import donation_station as ds
 
@@ -190,15 +191,35 @@ tr:hover td { background: color-mix(in srgb, var(--nav) 4%, transparent); }
 
 /* empty */
 .empty { color: var(--mid); font-size: 13px; padding: 24px 0; }
+
+/* urgency chips */
+.urg-expired  { display:inline-block;padding:2px 8px;font-size:10px;font-weight:bold;
+                letter-spacing:.1em;text-transform:uppercase;background:#A3442A;color:#fff; }
+.urg-critical { display:inline-block;padding:2px 8px;font-size:10px;font-weight:bold;
+                letter-spacing:.1em;text-transform:uppercase;background:#C4700E;color:#fff; }
+.urg-warning  { display:inline-block;padding:2px 8px;font-size:10px;font-weight:bold;
+                letter-spacing:.1em;text-transform:uppercase;background:#8A6500;color:#fff; }
+.urg-watch    { display:inline-block;padding:2px 8px;font-size:10px;
+                letter-spacing:.08em;text-transform:uppercase;
+                background:var(--rule);color:var(--mid); }
+
+/* temp zone pill */
+.zone-refrigerated { color:#2C4B6E; font-weight:500; }
+.zone-frozen       { color:#1E7A4E; font-weight:500; }
+.zone-ambient      { color:var(--mid); }
 </style>
 </head>
 <body>
 <nav>
   <span class="nav-brand">Donation Station</span>
   <div class="nav-links">
-    <a href="{{ url_for('index') }}"  class="{{ 'active' if active=='home' }}">Items</a>
+    <a href="{{ url_for('index') }}"    class="{{ 'active' if active=='home' }}">Items</a>
     <a href="{{ url_for('new_item') }}" class="{{ 'active' if active=='new' }}">+ Intake</a>
-    <a href="{{ url_for('report') }}"  class="{{ 'active' if active=='report' }}">Report</a>
+    <a href="{{ url_for('expiring_view') }}" class="{{ 'active' if active=='expiring' }}"
+       style="{% if expiring_count %}color:#E07820{% endif %}">
+      Expiring{% if expiring_count %} ({{ expiring_count }}){% endif %}
+    </a>
+    <a href="{{ url_for('report') }}"   class="{{ 'active' if active=='report' }}">Report</a>
   </div>
   <div class="nav-right">
     <form action="{{ url_for('search_view') }}" method="get">
@@ -245,10 +266,11 @@ INDEX = BASE.replace("{% block content %}{% endblock %}", """{% block content %}
 <table>
   <thead><tr>
     <th>ID</th><th>Name</th><th>T.I.E.R.</th><th>Category</th>
-    <th>Donor</th><th>Stage</th><th>Power Born</th>
+    <th>Donor</th><th>Stage</th><th>Expiry</th><th>Power Born</th>
   </tr></thead>
   <tbody>
   {% for item in items %}
+  {% set urgency = urgency_map.get(item.id, '') %}
   <tr>
     <td class="td-id"><a href="{{ url_for('item_detail', item_id=item.id) }}">{{ item.id }}</a></td>
     <td class="td-name"><a href="{{ url_for('item_detail', item_id=item.id) }}">{{ item.name }}</a></td>
@@ -256,12 +278,18 @@ INDEX = BASE.replace("{% block content %}{% endblock %}", """{% block content %}
     <td style="color:var(--mid);font-size:12px">{{ item.category }}</td>
     <td style="color:var(--mid);font-size:12px">{{ item.donor or '—' }}</td>
     <td><span class="badge stage-{{ item.stage }}">{{ item.stage }}</span></td>
+    <td style="font-size:12px">
+      {% if item.get('expiry_date') %}
+        {{ item.expiry_date }}
+        {% if urgency %}<span class="urg-{{ urgency }}">{{ urgency }}</span>{% endif %}
+      {% else %}—{% endif %}
+    </td>
     <td style="font-family:Georgia,serif;font-size:13px;color:var(--nav)">
       {% if item.power_date %}{{ item.power_date.born }} [{{ item.power_date.born_name }}]{% else %}—{% endif %}
     </td>
   </tr>
   {% else %}
-  <tr><td colspan="7" class="empty">No items found.</td></tr>
+  <tr><td colspan="8" class="empty">No items found.</td></tr>
   {% endfor %}
   </tbody>
 </table>
@@ -318,6 +346,33 @@ DETAIL = BASE.replace("{% block title %}Donation Station{% endblock %}",
     <div class="detail-val">{{ item.location }}</div>
   </div>
   {% endif %}
+  {% if item.get('temp_zone') %}
+  <div class="detail-box">
+    <div class="detail-label">Temperature Zone</div>
+    <div class="detail-val"><span class="zone-{{ item.temp_zone }}">{{ item.temp_zone }}</span></div>
+  </div>
+  {% endif %}
+  {% if item.get('expiry_date') %}
+  <div class="detail-box">
+    <div class="detail-label">Expiry Date</div>
+    <div class="detail-val">
+      {{ item.expiry_date }}
+      {% if urgency %}<span class="urg-{{ urgency }}" style="margin-left:8px">{{ urgency }}</span>{% endif %}
+    </div>
+  </div>
+  {% endif %}
+  {% if item.get('weight') %}
+  <div class="detail-box">
+    <div class="detail-label">Weight</div>
+    <div class="detail-val">{{ item.weight }}</div>
+  </div>
+  {% endif %}
+  {% if item.get('origin') %}
+  <div class="detail-box">
+    <div class="detail-label">Origin</div>
+    <div class="detail-val">{{ item.origin }}</div>
+  </div>
+  {% endif %}
 </div>
 {% if item.power_date %}
 <div class="power-box">
@@ -364,6 +419,7 @@ DETAIL = BASE.replace("{% block title %}Donation Station{% endblock %}",
     {% endif %}
     {% if event.location %}<div class="tl-row">Location: {{ event.location }}</div>{% endif %}
     {% if event.recipient %}<div class="tl-row">Recipient: {{ event.recipient }}</div>{% endif %}
+    {% if event.get('substitution') %}<div class="tl-row" style="color:var(--T)">Substitution: {{ event.substitution }}</div>{% endif %}
     {% if event.notes %}<div class="tl-row">Notes: {{ event.notes }}</div>{% endif %}
   </div>
 </div>
@@ -407,6 +463,35 @@ NEW = BASE.replace("{% block content %}{% endblock %}", """{% block content %}
     <div class="field">
       <label>Notes</label>
       <input name="notes">
+    </div>
+    <div style="margin:20px 0 10px;padding-top:16px;border-top:1px solid var(--rule)">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--mid);margin-bottom:14px">
+        Perishable Details (optional)
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Expiry Date</label>
+        <input name="expiry_date" type="date" placeholder="YYYY-MM-DD">
+      </div>
+      <div class="field">
+        <label>Temperature Zone</label>
+        <select name="temp_zone">
+          <option value="ambient">Ambient (dry / shelf-stable)</option>
+          <option value="refrigerated">Refrigerated</option>
+          <option value="frozen">Frozen</option>
+        </select>
+      </div>
+    </div>
+    <div class="row2">
+      <div class="field">
+        <label>Weight</label>
+        <input name="weight" placeholder="e.g. 5 lbs">
+      </div>
+      <div class="field">
+        <label>Origin / Supplier</label>
+        <input name="origin" placeholder="e.g. Green Acres Farm">
+      </div>
     </div>
     <button type="submit" class="btn">Log Intake</button>
   </form>
@@ -479,20 +564,85 @@ SEARCH = BASE.replace("{% block content %}{% endblock %}", """{% block content %
 </div>
 {% endblock %}""")
 
+# ── Expiring ──────────────────────────────────────────────────────────────────
+EXPIRING = BASE.replace("{% block content %}{% endblock %}", """{% block content %}
+<h1 class="page-title">Expiring Items</h1>
+<p style="font-size:12px;color:var(--mid);margin-bottom:20px">
+  Showing items in storage expiring within
+  <strong>{{ days }}</strong> day(s).
+  &nbsp;<a href="?days=1">1d</a> &nbsp;<a href="?days=2">2d</a>
+  &nbsp;<a href="?days=5">5d</a> &nbsp;<a href="?days=14">14d</a>
+</p>
+<div class="tbl-wrap">
+<table>
+  <thead><tr>
+    <th>ID</th><th>Name</th><th>Expiry</th><th>Zone</th>
+    <th>Location</th><th>Weight</th><th>Origin</th><th>Urgency</th>
+  </tr></thead>
+  <tbody>
+  {% for item in items %}
+  <tr>
+    <td class="td-id"><a href="{{ url_for('item_detail', item_id=item.id) }}">{{ item.id }}</a></td>
+    <td class="td-name"><a href="{{ url_for('item_detail', item_id=item.id) }}">{{ item.name }}</a></td>
+    <td style="font-variant-numeric:tabular-nums">{{ item.expiry_date }}</td>
+    <td><span class="zone-{{ item.get('temp_zone','ambient') }}">{{ item.get('temp_zone','ambient') }}</span></td>
+    <td style="color:var(--mid);font-size:12px">{{ item.get('location','—') }}</td>
+    <td style="color:var(--mid);font-size:12px">{{ item.get('weight','—') }}</td>
+    <td style="color:var(--mid);font-size:12px">{{ item.get('origin','—') }}</td>
+    <td><span class="urg-{{ item._urgency }}">{{ item._urgency }}</span></td>
+  </tr>
+  {% else %}
+  <tr><td colspan="8" class="empty">No items expiring within {{ days }} day(s).</td></tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endblock %}""")
+
 TIER_NAMES = {"T": "Time", "I": "Intelligence", "E": "Energy", "R": "Resources"}
 CATEGORIES = sorted(ds.TIER_MAP.keys())
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _urgency_for(item):
+    """Return urgency string for an item with expiry_date, or empty string."""
+    expiry = item.get("expiry_date", "")
+    if not expiry:
+        return ""
+    try:
+        days_left = (datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=timezone.utc).date()
+                     - datetime.now(timezone.utc).date()).days
+    except ValueError:
+        return ""
+    if days_left < 0:
+        return "expired"
+    if days_left == 0:
+        return "critical"
+    if days_left == 1:
+        return "warning"
+    return "watch"
+
+
+def _global_ctx():
+    """Values shared across every rendered template."""
+    urgent = ds.expiring(days=2)
+    return {"expiring_count": len(urgent)}
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
 
 @app.route("/")
 def index():
-    stage = request.args.get("stage", "all")
-    items = ds.list_items(stage)
-    r = ds.report()
+    stage   = request.args.get("stage", "all")
+    items   = ds.list_items(stage)
+    r       = ds.report()
+    urgency_map = {item["id"]: _urgency_for(item) for item in items}
     return render_template_string(INDEX,
         items=items, by_tier=r["by_tier"], stage_filter=stage,
-        active="home", flash=request.args.get("flash"), q=None)
+        urgency_map=urgency_map,
+        active="home", flash=request.args.get("flash"), q=None,
+        **_global_ctx())
 
 
 @app.route("/item/<item_id>")
@@ -501,8 +651,11 @@ def item_detail(item_id):
         item = ds.get_status(item_id)
     except KeyError:
         return redirect(url_for("index", flash=f"Item {item_id} not found."))
+    urgency = _urgency_for(item)
     return render_template_string(DETAIL,
-        item=item, tier_names=TIER_NAMES, active="home", flash=None, q=None)
+        item=item, tier_names=TIER_NAMES, urgency=urgency,
+        active="home", flash=None, q=None,
+        **_global_ctx())
 
 
 @app.route("/new", methods=["GET", "POST"])
@@ -516,10 +669,24 @@ def new_item():
             donor=f.get("donor", "").strip(),
             notes=f.get("notes", "").strip(),
             by=f.get("by", "").strip(),
+            expiry_date=f.get("expiry_date", "").strip(),
+            temp_zone=f.get("temp_zone", "ambient"),
+            weight=f.get("weight", "").strip(),
+            origin=f.get("origin", "").strip(),
         )
         return redirect(url_for("item_detail", item_id=item["id"]))
     return render_template_string(NEW,
-        categories=CATEGORIES, active="new", flash=None, q=None)
+        categories=CATEGORIES, active="new", flash=None, q=None,
+        **_global_ctx())
+
+
+@app.route("/expiring")
+def expiring_view():
+    days  = int(request.args.get("days", 2))
+    items = ds.expiring(days=days)
+    return render_template_string(EXPIRING,
+        items=items, days=days, active="expiring", flash=None, q=None,
+        **_global_ctx())
 
 
 @app.route("/report")
@@ -527,15 +694,17 @@ def report():
     r = ds.report()
     return render_template_string(REPORT, active="report", flash=None, q=None,
         total=r["total"], by_tier=r["by_tier"], by_stage=r["by_stage"],
-        maintenance_pending=r["maintenance_pending"])
+        maintenance_pending=r["maintenance_pending"],
+        **_global_ctx())
 
 
 @app.route("/search")
 def search_view():
-    q = request.args.get("q", "").strip()
+    q     = request.args.get("q", "").strip()
     items = ds.search(q) if q else []
     return render_template_string(SEARCH,
-        items=items, q=q, active=None, flash=None)
+        items=items, q=q, active=None, flash=None,
+        **_global_ctx())
 
 
 if __name__ == "__main__":

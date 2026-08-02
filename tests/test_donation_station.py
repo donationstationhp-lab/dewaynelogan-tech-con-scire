@@ -514,5 +514,348 @@ class TestExport(DSTestCase):
             os.remove(path)
 
 
+# ── perishables — intake fields ────────────────────────────────────────────────
+
+class TestPerishables(DSTestCase):
+    def test_expiry_date_stored(self):
+        item = ds.intake("Apples", expiry_date="2026-08-10")
+        self.assertEqual(item["expiry_date"], "2026-08-10")
+
+    def test_temp_zone_stored(self):
+        item = ds.intake("Milk", temp_zone="refrigerated")
+        self.assertEqual(item["temp_zone"], "refrigerated")
+
+    def test_temp_zone_default_ambient(self):
+        item = ds.intake("Canned Beans")
+        self.assertEqual(item.get("temp_zone"), "ambient")
+
+    def test_invalid_temp_zone_raises(self):
+        with self.assertRaises(ValueError):
+            ds.intake("Fish", temp_zone="warm")
+
+    def test_weight_stored(self):
+        item = ds.intake("Oranges", weight="5 lbs")
+        self.assertEqual(item["weight"], "5 lbs")
+
+    def test_origin_stored(self):
+        item = ds.intake("Carrots", origin="Green Acres Farm")
+        self.assertEqual(item["origin"], "Green Acres Farm")
+
+    def test_all_perishable_fields(self):
+        item = ds.intake("Strawberries", category="food",
+                         expiry_date="2026-08-06", temp_zone="refrigerated",
+                         weight="2 lbs", origin="Berry Valley")
+        self.assertEqual(item["expiry_date"], "2026-08-06")
+        self.assertEqual(item["temp_zone"],   "refrigerated")
+        self.assertEqual(item["weight"],      "2 lbs")
+        self.assertEqual(item["origin"],      "Berry Valley")
+
+    def test_no_expiry_means_no_field(self):
+        item = ds.intake("Blanket")
+        self.assertNotIn("expiry_date", item)
+
+    def test_frozen_zone(self):
+        item = ds.intake("Ice Cream", temp_zone="frozen")
+        self.assertEqual(item["temp_zone"], "frozen")
+
+
+# ── perishables — expiring() ───────────────────────────────────────────────────
+
+class TestExpiring(DSTestCase):
+    def setUp(self):
+        super().setUp()
+        from datetime import datetime, timezone, timedelta
+        today = datetime.now(timezone.utc).date()
+
+        def _make(name, days_offset):
+            expiry = (today + timedelta(days=days_offset)).strftime("%Y-%m-%d")
+            item = ds.intake(name, category="food", expiry_date=expiry)
+            item = ds.process_qc(item["id"], passed=True)
+            item = ds.store(item["id"], "COLD-1")
+            return item
+
+        self.expired   = _make("Expired Milk",   -1)
+        self.today_exp = _make("Today Apples",    0)
+        self.tomorrow  = _make("Tomorrow Pears",  1)
+        self.in_5_days = _make("5-Day Oranges",   5)
+        self.no_expiry = ds.intake("Canned Beans")
+
+    def test_returns_expired_items(self):
+        items = ds.expiring(days=2)
+        ids = [i["id"] for i in items]
+        self.assertIn(self.expired["id"],   ids)
+        self.assertIn(self.today_exp["id"], ids)
+        self.assertIn(self.tomorrow["id"],  ids)
+
+    def test_excludes_far_future(self):
+        items = ds.expiring(days=2)
+        ids = [i["id"] for i in items]
+        self.assertNotIn(self.in_5_days["id"], ids)
+
+    def test_excludes_no_expiry_items(self):
+        items = ds.expiring(days=2)
+        ids = [i["id"] for i in items]
+        self.assertNotIn(self.no_expiry["id"], ids)
+
+    def test_excludes_non_storage_items(self):
+        item = ds.intake("Peach", category="food", expiry_date="2020-01-01")
+        items = ds.expiring(days=999)
+        ids = [i["id"] for i in items]
+        self.assertNotIn(item["id"], ids)
+
+    def test_urgency_flags(self):
+        items = ds.expiring(days=5)
+        by_id = {i["id"]: i for i in items}
+        self.assertEqual(by_id[self.expired["id"]]["_urgency"],   "expired")
+        self.assertEqual(by_id[self.today_exp["id"]]["_urgency"], "critical")
+        self.assertEqual(by_id[self.tomorrow["id"]]["_urgency"],  "warning")
+        self.assertEqual(by_id[self.in_5_days["id"]]["_urgency"], "watch")
+
+    def test_days_left_field(self):
+        items = ds.expiring(days=1)
+        today_item = next(i for i in items if i["id"] == self.today_exp["id"])
+        self.assertEqual(today_item["_days_left"], 0)
+
+    def test_sorted_by_expiry(self):
+        items = ds.expiring(days=5)
+        expiries = [i["expiry_date"] for i in items]
+        self.assertEqual(expiries, sorted(expiries))
+
+    def test_wider_window(self):
+        items = ds.expiring(days=10)
+        ids = [i["id"] for i in items]
+        self.assertIn(self.in_5_days["id"], ids)
+
+
+# ── perishables — fifo_list() expiry-aware sort ────────────────────────────────
+
+class TestFifoExpiry(DSTestCase):
+    def test_perishables_sort_before_non_perishables(self):
+        from datetime import datetime, timezone, timedelta
+        today = datetime.now(timezone.utc).date()
+        future = (today + timedelta(days=30)).strftime("%Y-%m-%d")
+
+        non_perish = ds.intake("Blanket", category="household")
+        non_perish = ds.process_qc(non_perish["id"], passed=True)
+        ds.store(non_perish["id"], "SHELF-1")
+
+        perish = ds.intake("Apples", category="food", expiry_date=future)
+        perish = ds.process_qc(perish["id"], passed=True)
+        ds.store(perish["id"], "SHELF-1")
+
+        fifo = ds.fifo_list()
+        ids = [i["id"] for i in fifo]
+        self.assertEqual(ids[0], perish["id"])
+
+    def test_among_perishables_sooner_expiry_first(self):
+        from datetime import datetime, timezone, timedelta
+        today = datetime.now(timezone.utc).date()
+        near  = (today + timedelta(days=2)).strftime("%Y-%m-%d")
+        far   = (today + timedelta(days=10)).strftime("%Y-%m-%d")
+
+        for expiry, name in [(far, "Far"), (near, "Near")]:
+            item = ds.intake(name, expiry_date=expiry)
+            item = ds.process_qc(item["id"], passed=True)
+            ds.store(item["id"], "SHELF-1")
+
+        fifo  = ds.fifo_list()
+        names = [i["name"] for i in fifo]
+        self.assertEqual(names[0], "Near")
+
+
+# ── perishables — temp zone store check ────────────────────────────────────────
+
+class TestTempZoneStore(DSTestCase):
+    def test_zone_mismatch_raises(self):
+        ds.add_location("FRIDGE-1", temp_zone="refrigerated")
+        item = ds.intake("Bread", temp_zone="ambient")
+        item = ds.process_qc(item["id"], passed=True)
+        with self.assertRaises(ValueError):
+            ds.store(item["id"], "FRIDGE-1")
+
+    def test_zone_match_succeeds(self):
+        ds.add_location("FRIDGE-2", temp_zone="refrigerated")
+        item = ds.intake("Yogurt", temp_zone="refrigerated")
+        item = ds.process_qc(item["id"], passed=True)
+        stored = ds.store(item["id"], "FRIDGE-2")
+        self.assertEqual(stored["stage"], "storage")
+
+    def test_location_without_temp_zone_skips_check(self):
+        ds.add_location("SHELF-1")
+        item = ds.intake("Juice", temp_zone="refrigerated")
+        item = ds.process_qc(item["id"], passed=True)
+        stored = ds.store(item["id"], "SHELF-1")
+        self.assertEqual(stored["stage"], "storage")
+
+    def test_add_location_stores_temp_zone(self):
+        loc = ds.add_location("FREEZE-1", temp_zone="frozen")
+        self.assertEqual(loc["temp_zone"], "frozen")
+
+    def test_invalid_location_temp_zone_raises(self):
+        with self.assertRaises(ValueError):
+            ds.add_location("BAD-1", temp_zone="lukewarm")
+
+
+# ── routes ─────────────────────────────────────────────────────────────────────
+
+class TestRoutes(DSTestCase):
+    def test_add_route(self):
+        route = ds.add_route("North Loop", "North side stops")
+        self.assertEqual(route["name"],        "North Loop")
+        self.assertEqual(route["description"], "North side stops")
+        self.assertEqual(route["stops"],       [])
+
+    def test_add_duplicate_route_raises(self):
+        ds.add_route("East Run")
+        with self.assertRaises(ValueError):
+            ds.add_route("East Run")
+
+    def test_add_route_stop(self):
+        ds.add_route("South Line")
+        route = ds.add_route_stop("South Line", "Community Center",
+                                   address="123 Main St", notes="Side door")
+        self.assertEqual(len(route["stops"]), 1)
+        self.assertEqual(route["stops"][0]["recipient"], "Community Center")
+        self.assertEqual(route["stops"][0]["address"],   "123 Main St")
+
+    def test_multiple_stops(self):
+        ds.add_route("West Run")
+        ds.add_route_stop("West Run", "Stop A")
+        ds.add_route_stop("West Run", "Stop B")
+        routes = ds.list_routes()
+        west = next(r for r in routes if r["name"] == "West Run")
+        self.assertEqual(len(west["stops"]), 2)
+
+    def test_add_stop_unknown_route_raises(self):
+        with self.assertRaises(KeyError):
+            ds.add_route_stop("Ghost Route", "Nobody")
+
+    def test_list_routes_empty(self):
+        self.assertEqual(ds.list_routes(), [])
+
+    def test_list_routes(self):
+        ds.add_route("Route A")
+        ds.add_route("Route B")
+        routes = ds.list_routes()
+        self.assertEqual(len(routes), 2)
+
+    def test_generate_manifest_unknown_route_raises(self):
+        with self.assertRaises(KeyError):
+            ds.generate_manifest("Ghost Route")
+
+    def test_generate_manifest_structure(self):
+        ds.add_route("Manifest Route")
+        manifest = ds.generate_manifest("Manifest Route")
+        self.assertEqual(manifest["route"], "Manifest Route")
+        self.assertIn("stops",  manifest)
+        self.assertIn("urgent", manifest)
+        self.assertIn("cold",   manifest)
+        self.assertIn("normal", manifest)
+
+    def test_manifest_perishable_in_urgent(self):
+        from datetime import datetime, timezone, timedelta
+        today   = datetime.now(timezone.utc).date()
+        expiry  = (today + timedelta(days=1)).strftime("%Y-%m-%d")
+        ds.add_route("Fresh Route")
+        item = ds.intake("Strawberries", expiry_date=expiry)
+        item = ds.process_qc(item["id"], passed=True)
+        ds.store(item["id"], "SHELF-1")
+        manifest = ds.generate_manifest("Fresh Route")
+        urgent_ids = [i["id"] for i in manifest["urgent"]]
+        self.assertIn(item["id"], urgent_ids)
+
+    def test_manifest_cold_chain_item(self):
+        ds.add_route("Cold Route")
+        item = ds.intake("Cheese", temp_zone="refrigerated")
+        item = ds.process_qc(item["id"], passed=True)
+        ds.store(item["id"], "SHELF-1")
+        manifest = ds.generate_manifest("Cold Route")
+        cold_ids = [i["id"] for i in manifest["cold"]]
+        self.assertIn(item["id"], cold_ids)
+
+
+# ── substitution notes ─────────────────────────────────────────────────────────
+
+class TestSubstitution(DSTestCase):
+    def _make_stored(self):
+        item = ds.intake("Apples")
+        item = ds.process_qc(item["id"], passed=True)
+        item = ds.store(item["id"], "SHELF-1")
+        return item
+
+    def test_substitution_stored_in_history(self):
+        item = self._make_stored()
+        result = ds.distribute(item["id"], "Shelter", substitution="Swapped for pears")
+        dist_event = next(e for e in result["history"] if e["stage"] == "distributed")
+        self.assertEqual(dist_event["substitution"], "Swapped for pears")
+
+    def test_no_substitution_by_default(self):
+        item = self._make_stored()
+        result = ds.distribute(item["id"], "Shelter")
+        dist_event = next(e for e in result["history"] if e["stage"] == "distributed")
+        self.assertNotIn("substitution", dist_event)
+
+    def test_substitution_in_export_csv(self):
+        import csv, tempfile
+        item = self._make_stored()
+        ds.distribute(item["id"], "Shelter", substitution="Swapped for pears")
+        out = tempfile.mktemp(suffix=".csv")
+        try:
+            ds.export(out)
+            with open(out) as f:
+                row = list(csv.DictReader(f))[0]
+            self.assertEqual(row["Substitution"], "Swapped for pears")
+        finally:
+            if os.path.exists(out):
+                os.remove(out)
+
+
+# ── export — perishable CSV fields ─────────────────────────────────────────────
+
+class TestExportPerishableFields(DSTestCase):
+    def setUp(self):
+        super().setUp()
+        self._csv = tempfile.mktemp(suffix=".csv")
+
+    def tearDown(self):
+        super().tearDown()
+        if os.path.exists(self._csv):
+            os.remove(self._csv)
+
+    def test_perishable_columns_present(self):
+        import csv
+        ds.intake("Apples", expiry_date="2026-08-10")
+        ds.export(self._csv)
+        with open(self._csv) as f:
+            reader = csv.DictReader(f)
+            for col in ("Temp Zone", "Expiry Date", "Weight", "Origin", "Substitution"):
+                self.assertIn(col, reader.fieldnames)
+
+    def test_expiry_date_in_csv(self):
+        import csv
+        ds.intake("Mangoes", expiry_date="2026-08-15")
+        ds.export(self._csv)
+        with open(self._csv) as f:
+            row = list(csv.DictReader(f))[0]
+        self.assertEqual(row["Expiry Date"], "2026-08-15")
+
+    def test_temp_zone_in_csv(self):
+        import csv
+        ds.intake("Milk", temp_zone="refrigerated")
+        ds.export(self._csv)
+        with open(self._csv) as f:
+            row = list(csv.DictReader(f))[0]
+        self.assertEqual(row["Temp Zone"], "refrigerated")
+
+    def test_weight_and_origin_in_csv(self):
+        import csv
+        ds.intake("Carrots", weight="3 lbs", origin="Valley Farm")
+        ds.export(self._csv)
+        with open(self._csv) as f:
+            row = list(csv.DictReader(f))[0]
+        self.assertEqual(row["Weight"], "3 lbs")
+        self.assertEqual(row["Origin"], "Valley Farm")
+
+
 if __name__ == "__main__":
     unittest.main()
