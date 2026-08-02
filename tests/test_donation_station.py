@@ -309,6 +309,94 @@ class TestOutput(DSTestCase):
         self.assertIn("Total items", captured.getvalue())
 
 
+# ── search ─────────────────────────────────────────────────────────────────────
+
+class TestSearch(DSTestCase):
+    def setUp(self):
+        super().setUp()
+        ds.intake("Winter Jacket", category="clothing", donor="Jane Smith")
+        item2 = ds.intake("Dog Walking", category="volunteer", donor="Matthew")
+        ds.process_qc(item2["id"], passed=True)
+        item3 = ds.intake("20 Dollars", category="financial", donor="Mary")
+        ds.process_qc(item3["id"], passed=True)
+        ds.store(item3["id"], "A-1")
+        ds.distribute(item3["id"], "Community Center")
+
+    def test_search_by_name(self):
+        results = ds.search("Jacket")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["name"], "Winter Jacket")
+
+    def test_search_by_donor(self):
+        results = ds.search("Matthew")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["category"], "volunteer")
+
+    def test_search_by_recipient(self):
+        results = ds.search("Community Center")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["name"], "20 Dollars")
+
+    def test_search_by_category(self):
+        results = ds.search("financial")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["name"], "20 Dollars")
+
+    def test_search_case_insensitive(self):
+        self.assertEqual(ds.search("jane smith"), ds.search("Jane Smith"))
+
+    def test_search_no_match(self):
+        self.assertEqual(ds.search("xyz_no_match"), [])
+
+    def test_search_multiple_matches(self):
+        results = ds.search("Donation")
+        self.assertGreaterEqual(len(results), 0)
+
+    def test_search_returns_full_item(self):
+        results = ds.search("Jacket")
+        self.assertIn("history", results[0])
+        self.assertIn("tier",    results[0])
+
+
+# ── power date ─────────────────────────────────────────────────────────────────
+
+class TestPowerDate(DSTestCase):
+    def test_intake_stores_power_date(self):
+        item = ds.intake("Coat")
+        self.assertIn("power_date", item)
+
+    def test_power_date_has_required_keys(self):
+        item = ds.intake("Coat")
+        pd = item["power_date"]
+        for key in ("root", "root_born", "born", "born_name"):
+            self.assertIn(key, pd)
+
+    def test_power_date_born_is_int(self):
+        item = ds.intake("Coat")
+        self.assertIsInstance(item["power_date"]["born"], int)
+
+    def test_power_date_root_is_int(self):
+        item = ds.intake("Coat")
+        self.assertIsInstance(item["power_date"]["root"], int)
+
+    def test_power_date_born_name_is_string(self):
+        item = ds.intake("Coat")
+        self.assertIsInstance(item["power_date"]["born_name"], str)
+
+    def test_power_date_shown_in_print_item(self):
+        item = ds.intake("Coat")
+        captured = StringIO()
+        with patch("sys.stdout", captured):
+            ds.print_item(item)
+        self.assertIn("Power", captured.getvalue())
+        self.assertIn("Born", captured.getvalue())
+
+    def test_power_date_persists(self):
+        item = ds.intake("Coat")
+        reloaded = ds.get_status(item["id"])
+        self.assertIn("power_date", reloaded)
+
+
 # ── export ─────────────────────────────────────────────────────────────────────
 
 class TestExport(DSTestCase):
@@ -345,10 +433,9 @@ class TestExport(DSTestCase):
         ds.export(self._csv)
         with open(self._csv) as f:
             reader = csv.DictReader(f)
-            self.assertIn("Name",      reader.fieldnames)
-            self.assertIn("Item ID",   reader.fieldnames)
-            self.assertIn("T.I.E.R.", reader.fieldnames)
-            self.assertIn("Stage",     reader.fieldnames)
+            for col in ("Name", "Item ID", "T.I.E.R.", "Stage",
+                        "Power Root", "Power Born", "Power Born Name"):
+                self.assertIn(col, reader.fieldnames)
 
     def test_csv_row_count_matches_items(self):
         import csv

@@ -20,6 +20,7 @@ Usage:
   python donation_station.py status DS-0001
   python donation_station.py list
   python donation_station.py list --stage qc
+  python donation_station.py search "Jane"
   python donation_station.py report
   python donation_station.py export
   python donation_station.py export --out /path/to/file.csv
@@ -30,6 +31,11 @@ import json
 import os
 import sys
 from datetime import datetime, timezone
+
+try:
+    import power_connection as _pc
+except ImportError:
+    _pc = None
 
 # ── Storage ───────────────────────────────────────────────────────────────────
 
@@ -103,6 +109,20 @@ def _now():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
+def _power_date(timestamp):
+    """Return power connection data for a YYYY-MM-DDTHH:MM:SSZ timestamp."""
+    if _pc is None:
+        return None
+    y, m, d = (int(p) for p in timestamp[:10].split("-"))
+    r = _pc.calculate(m, d, y)
+    return {
+        "root":      r["root"]["raw"],
+        "root_born": r["root"]["born"],
+        "born":      r["born"],
+        "born_name": _pc.SINGLE_MEANINGS.get(r["born"], ("", ""))[0],
+    }
+
+
 def _load():
     if os.path.exists(DATA_FILE):
         with open(DATA_FILE) as f:
@@ -127,6 +147,7 @@ def intake(name, category="general", condition="good", donor="", notes="", by=""
     db      = _load()
     item_id = _next_id(db)
     tier    = classify_tier(category)
+    ts      = _now()
     item = {
         "id":        item_id,
         "name":      name,
@@ -138,12 +159,15 @@ def intake(name, category="general", condition="good", donor="", notes="", by=""
         "history":   [
             {
                 "stage":     "intake",
-                "timestamp": _now(),
+                "timestamp": ts,
                 "by":        by,
                 "notes":     notes,
             }
         ],
     }
+    pd = _power_date(ts)
+    if pd:
+        item["power_date"] = pd
     db["items"][item_id] = item
     _save(db)
     return item
@@ -224,6 +248,23 @@ def list_items(stage=None):
     return items
 
 
+def search(query):
+    db = _load()
+    q  = query.lower().strip()
+    results = []
+    for item in db["items"].values():
+        haystack = " ".join(filter(None, [
+            item["name"],
+            item.get("donor", ""),
+            item.get("recipient", ""),
+            item.get("category", ""),
+            item.get("location", ""),
+        ] + [e.get("notes", "") for e in item["history"]])).lower()
+        if q in haystack:
+            results.append(item)
+    return results
+
+
 def report():
     db    = _load()
     items = list(db["items"].values())
@@ -265,6 +306,7 @@ def export(path=None):
         qc     = _ev("qc")
         dist   = _ev("distributed")
         tier   = item.get("tier") or classify_tier(item.get("category", "general"))
+        pd = item.get("power_date", {})
         rows.append({
             "Name":             item["name"],
             "Item ID":          item["id"],
@@ -280,6 +322,9 @@ def export(path=None):
             "Received By":      intake.get("by", ""),
             "Distributed By":   dist.get("by", ""),
             "QC Result":        "Pass" if qc.get("passed") else ("Fail" if qc else ""),
+            "Power Root":       pd.get("root", ""),
+            "Power Born":       pd.get("born", ""),
+            "Power Born Name":  pd.get("born_name", ""),
             "Notes":            intake.get("notes", ""),
         })
 
@@ -351,6 +396,9 @@ def print_item(item, header="ITEM"):
         print(f"  Location: {item['location']}")
     if item.get("maintenance_needed"):
         print(f"  Maintenance: {item['maintenance_needed']}")
+    if item.get("power_date"):
+        pd = item["power_date"]
+        print(f"  Power: Root {pd['root']} → {pd['root_born']}  |  Born {pd['born']} [{pd['born_name']}]")
     print(BAR)
     print()
     for event in item["history"]:
@@ -504,6 +552,18 @@ def main():
                 print(json.dumps(r, indent=2))
             else:
                 print_report(r)
+
+        elif cmd == "search":
+            if not rest:
+                sys.exit("Usage: donation_station.py search <query>")
+            results = search(" ".join(rest))
+            if use_json:
+                print(json.dumps(results, indent=2))
+            else:
+                if not results:
+                    print(f"  No items matched '{' '.join(rest)}'.")
+                else:
+                    print_list(results)
 
         elif cmd == "export":
             p = argparse.ArgumentParser(prog="donation_station export")
