@@ -1,0 +1,124 @@
+{
+  "organization": "Communities in Action",
+  "timestamp": "2026-08-02T20:22:38.607537",
+  "dimensions": [
+    {
+      "position": 0,
+      "name": "CIPHER/COMPLETION",
+      "scores": [
+        10.0,
+        10.0,
+        10.0
+      ],
+      "average": 10.0,
+      "level": "Mature"
+    },
+    {
+      "position": 1,
+      "name": "KNOWLEDGE",
+      "scores": [
+        10.0,
+        10.0,
+        10.0
+      ],
+      "average": 10.0,
+      "level": "Mature"
+    },
+    {
+      "position": 2,
+      "name": "WISDOM",
+      "scores": [
+        10.0,
+        10.0,
+        10.0
+      ],
+      "average": 10.0,
+      "level": "Mature"
+    },
+    {
+      "position": 3,
+      "name": "UNDERSTANDING",
+      "scores": [
+        10.0,
+        10.0,
+        10.0
+      ],
+      "average": 10.0,
+      "level": "Mature"
+    },
+    {
+      "position": 4,
+      "name": "CULTURED FREEDOM",
+      "scores": [
+        10.0,
+        10.0,
+        10.0
+      ],
+      "average": 10.0,
+      "level": "Mature"
+    },
+    {
+      "position": 5,
+      "name": "POWER REFINEMENT",
+      "scores": [
+        10.0,
+        10.0,
+        10.0
+      ],
+      "average": 10.0,
+      "level": "Mature"
+    },
+    {
+      "position": 6,
+      "name": "EQUALITY",
+      "scores": [
+        10.0,
+        10.0,
+        10.0
+      ],
+      "average": 10.0,
+      "level": "Mature"
+    },
+    {
+      "position": 7,
+      "name": "CONSCIOUSNESS",
+      "scores": [
+        10.0,
+        10.0,
+        10.0
+      ],
+      "average": 10.0,
+      "level": "Mature"
+    },
+    {
+      "position": 8,
+      "name": "BUILD/DESTROY",
+      "scores": [
+        10.0,
+        10.0,
+        10.0
+      ],
+      "average": 10.0,
+      "level": "Mature"
+    },
+    {
+      "position": 9,
+      "name": "BORN",
+      "scores": [
+        10.0,
+        10.0,
+        10.0
+      ],
+      "average": 10.0,
+      "level": "Mature"
+    }
+  ],
+  "aggregate_score": 10.0,
+  "aggregate_level": "Mature",
+  "top_gap": {
+    "position": 0,
+    "name": "CIPHER/COMPLETION",
+    "score": 10.0,
+    "level": "Mature"
+  }
+}
