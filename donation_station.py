@@ -64,6 +64,12 @@ Usage:
 
   # Substitution notes on distribution
   python donation_station.py distribute DS-0001 "Recipient" --substitution "Swapped apples for pears"
+
+  # Remote mode (Replit as primary backend)
+  python donation_station.py remote --url https://donation-lifecycle-tracker.replit.app --key YOUR_API_KEY
+  python donation_station.py remote --show
+  python donation_station.py remote --clear
+  python donation_station.py sync          # push all local items to Replit
 """
 
 import argparse
@@ -81,6 +87,79 @@ except ImportError:
 
 DATA_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
                          ".donation_station_data.json")
+
+REMOTE_CONFIG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                  ".donation_station_remote.json")
+
+# ── Remote backend (Replit as primary) ───────────────────────────────────────
+
+def _remote_config():
+    """Return (url, api_key) from config file or env vars, or (None, None)."""
+    url = os.environ.get("DONATION_STATION_URL", "")
+    key = os.environ.get("DONATION_STATION_API_KEY", "")
+    if url and key:
+        return url.rstrip("/"), key
+    if os.path.exists(REMOTE_CONFIG_FILE):
+        try:
+            cfg = json.load(open(REMOTE_CONFIG_FILE))
+            return cfg.get("url", "").rstrip("/"), cfg.get("api_key", "")
+        except Exception:
+            pass
+    return None, None
+
+
+def _is_remote():
+    u, k = _remote_config()
+    return bool(u and k)
+
+
+def _remote(method, path, body=None):
+    """Make an authenticated HTTP request to the Replit backend."""
+    try:
+        import urllib.request as _ur
+        import urllib.error as _ue
+    except ImportError:
+        raise RuntimeError("urllib not available.")
+    url, key = _remote_config()
+    if not url:
+        raise RuntimeError("Remote not configured. Run: donation_station.py remote --url URL --key KEY")
+    full = url + path
+    data = json.dumps(body).encode() if body is not None else None
+    req  = _ur.Request(full, data=data, method=method.upper())
+    req.add_header("X-API-Key", key)
+    req.add_header("Content-Type", "application/json")
+    req.add_header("Accept", "application/json")
+    try:
+        with _ur.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode())
+    except _ue.HTTPError as e:
+        body_text = e.read().decode()
+        try:
+            err = json.loads(body_text)
+            raise ValueError(err.get("error", body_text))
+        except (json.JSONDecodeError, KeyError):
+            raise ValueError(f"HTTP {e.code}: {body_text}")
+
+
+def save_remote_config(url, api_key):
+    with open(REMOTE_CONFIG_FILE, "w") as f:
+        json.dump({"url": url.rstrip("/"), "api_key": api_key}, f, indent=2)
+
+
+def clear_remote_config():
+    if os.path.exists(REMOTE_CONFIG_FILE):
+        os.remove(REMOTE_CONFIG_FILE)
+
+
+def sync_to_remote():
+    """Push all local items to the Replit backend via /api/import."""
+    if not _is_remote():
+        raise RuntimeError("Remote not configured.")
+    db    = _load()
+    items = list(db["items"].values())
+    result = _remote("POST", "/api/import", items)
+    return result
+
 
 STAGES     = ("intake", "qc", "storage", "distributed")
 CONDITIONS = ("good", "fair", "poor")
@@ -196,6 +275,11 @@ def _next_lot_id(db):
 
 def intake(name, category="general", condition="good", donor="", notes="", by="", lot="",
            expiry_date="", temp_zone="ambient", weight="", origin=""):
+    if _is_remote():
+        return _remote("POST", "/api/items", dict(
+            name=name, category=category, condition=condition, donor=donor,
+            notes=notes, by=by, lot=lot, expiry_date=expiry_date,
+            temp_zone=temp_zone, weight=weight, origin=origin))
     db      = _load()
     item_id = _next_id(db)
     tier    = classify_tier(category)
@@ -241,6 +325,9 @@ def intake(name, category="general", condition="good", donor="", notes="", by=""
 
 
 def process_qc(item_id, passed, by="", notes="", maintenance=""):
+    if _is_remote():
+        return _remote("POST", f"/api/items/{item_id}/qc",
+                       dict(passed=passed, by=by, notes=notes, maintenance=maintenance))
     db   = _load()
     item = _get_item(db, item_id)
     if item["stage"] != "intake":
@@ -262,6 +349,9 @@ def process_qc(item_id, passed, by="", notes="", maintenance=""):
 
 
 def store(item_id, location, by="", notes=""):
+    if _is_remote():
+        return _remote("POST", f"/api/items/{item_id}/store",
+                       dict(location=location, by=by, notes=notes))
     db   = _load()
     item = _get_item(db, item_id)
     if item["stage"] != "qc":
@@ -295,6 +385,9 @@ def store(item_id, location, by="", notes=""):
 
 
 def distribute(item_id, recipient, by="", notes="", substitution=""):
+    if _is_remote():
+        return _remote("POST", f"/api/items/{item_id}/distribute",
+                       dict(recipient=recipient, by=by, notes=notes, substitution=substitution))
     db   = _load()
     item = _get_item(db, item_id)
     if item["stage"] != "storage":
@@ -319,11 +412,16 @@ def distribute(item_id, recipient, by="", notes="", substitution=""):
 
 
 def get_status(item_id):
+    if _is_remote():
+        return _remote("GET", f"/api/items/{item_id}")
     db = _load()
     return _get_item(db, item_id)
 
 
 def list_items(stage=None):
+    if _is_remote():
+        path = "/api/items" + (f"?stage={stage}" if stage and stage != "all" else "")
+        return _remote("GET", path)
     db = _load()
     items = list(db["items"].values())
     if stage and stage != "all":
@@ -374,6 +472,10 @@ def lots_list():
 # ── Location system (Target) ──────────────────────────────────────────────────
 
 def add_location(code, zone="", capacity=0, description="", temp_zone=""):
+    if _is_remote():
+        return _remote("POST", "/api/locations",
+                       dict(code=code, zone=zone, capacity=capacity,
+                            description=description, temp_zone=temp_zone))
     db = _load()
     if temp_zone and temp_zone not in TEMP_ZONES:
         raise ValueError(f"temp_zone must be one of: {', '.join(TEMP_ZONES)}")
@@ -392,6 +494,8 @@ def add_location(code, zone="", capacity=0, description="", temp_zone=""):
 
 
 def list_locations():
+    if _is_remote():
+        return _remote("GET", "/api/locations")
     db = _load()
     return list(db.get("locations", {}).values())
 
@@ -430,6 +534,8 @@ def fifo_list():
 
 def expiring(days=2):
     """Return storage items expiring within *days* days, with urgency flags."""
+    if _is_remote():
+        return _remote("GET", f"/api/items/expiring?days={days}")
     items = list_items("storage")
     now   = datetime.now(timezone.utc)
     result = []
@@ -545,6 +651,8 @@ def generate_manifest(route_name):
 # ── Throughput & QC metrics (Dart) ───────────────────────────────────────────
 
 def metrics():
+    if _is_remote():
+        return _remote("GET", "/api/metrics")
     db    = _load()
     items = list(db["items"].values())
     now   = datetime.now(timezone.utc)
@@ -1362,6 +1470,48 @@ def main():
                 print(json.dumps(manifest, indent=2))
             else:
                 print_manifest(manifest)
+
+        elif cmd == "remote":
+            p = argparse.ArgumentParser(prog="donation_station remote")
+            p.add_argument("--url",   default="", help="Replit app URL")
+            p.add_argument("--key",   default="", dest="api_key", help="API key")
+            p.add_argument("--show",  action="store_true", help="show current config")
+            p.add_argument("--clear", action="store_true", help="clear remote config")
+            a = p.parse_args(rest)
+            if a.clear:
+                clear_remote_config()
+                print("  Remote config cleared. CLI will use local JSON.")
+            elif a.show:
+                url, key = _remote_config()
+                if url:
+                    masked = key[:6] + "..." + key[-4:] if len(key) > 10 else "***"
+                    print(f"  Remote URL: {url}")
+                    print(f"  API Key:    {masked}")
+                else:
+                    print("  No remote configured. CLI is in local mode.")
+            elif a.url and a.api_key:
+                save_remote_config(a.url, a.api_key)
+                print(f"  Remote configured: {a.url}")
+                print(f"  All CLI commands will now route through Replit.")
+                try:
+                    health = _remote("GET", "/api/health")
+                    print(f"  Health check: {health}")
+                except Exception as e:
+                    print(f"  Warning: health check failed — {e}")
+            else:
+                p.print_help()
+
+        elif cmd == "sync":
+            if not _is_remote():
+                sys.exit("Remote not configured. Run: donation_station.py remote --url URL --key KEY")
+            print("  Syncing local items to Replit...")
+            result = sync_to_remote()
+            if use_json:
+                print(json.dumps(result, indent=2))
+            else:
+                imported = result.get("imported", 0)
+                skipped  = result.get("skipped", 0)
+                print(f"  Sync complete: {imported} imported, {skipped} already existed.")
 
         else:
             sys.exit(f"Unknown command '{cmd}'. Run without arguments for usage.")
