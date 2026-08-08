@@ -7,3 +7,5 @@ dist/
 build/
 .eggs/
 donation_station_export.csv
+.donation_station_remote.json
+.env
