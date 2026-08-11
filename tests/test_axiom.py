@@ -401,5 +401,215 @@ class TestScoringPipeline(unittest.TestCase):
         self.assertEqual(report["top_gap"]["name"], "BORN")
 
 
+# ── scores_are_uniform ───────────────────────────────────────────────────────
+
+class TestScoresAreUniform(unittest.TestCase):
+    def _make_results(self, averages):
+        return [{"position": i, "name": f"D{i}", "average": avg, "level": "Emerging"}
+                for i, avg in enumerate(averages)]
+
+    def test_all_equal_returns_true(self):
+        self.assertTrue(axiom.scores_are_uniform(self._make_results([10.0] * 10)))
+
+    def test_one_different_returns_false(self):
+        avgs = [10.0] * 10
+        avgs[5] = 9.0
+        self.assertFalse(axiom.scores_are_uniform(self._make_results(avgs)))
+
+    def test_all_different_returns_false(self):
+        self.assertFalse(axiom.scores_are_uniform(self._make_results(list(range(1, 11)))))
+
+    def test_single_item_returns_true(self):
+        self.assertTrue(axiom.scores_are_uniform(self._make_results([7.0])))
+
+
+# ── build_report uniform flag ─────────────────────────────────────────────────
+
+class TestBuildReportUniformFlag(unittest.TestCase):
+    def _make_results(self, avg):
+        return [
+            {"position": i, "name": f"D{i}", "scores": [avg]*3,
+             "average": avg, "level": axiom.get_category(avg)}
+            for i in range(10)
+        ]
+
+    def test_uniform_true_when_all_equal(self):
+        report = axiom.build_report("Org", self._make_results(10.0))
+        self.assertTrue(report["uniform"])
+
+    def test_uniform_false_when_mixed(self):
+        results = self._make_results(7.0)
+        results[3]["average"] = 4.0
+        report = axiom.build_report("Org", results)
+        self.assertFalse(report["uniform"])
+
+    def test_assessors_stored_when_provided(self):
+        results = self._make_results(8.0)
+        report = axiom.build_report("Org", results, assessors=["Alice", "Bob"])
+        self.assertEqual(report["assessors"], ["Alice", "Bob"])
+        self.assertEqual(report["assessor_count"], 2)
+
+    def test_no_assessors_key_when_omitted(self):
+        results = self._make_results(8.0)
+        report = axiom.build_report("Org", results)
+        self.assertNotIn("assessors", report)
+        self.assertNotIn("assessor_count", report)
+
+
+# ── print_report uniform output ───────────────────────────────────────────────
+
+class TestPrintReportUniform(unittest.TestCase):
+    """Verify print_report suppresses gap action when scores are uniform."""
+
+    def _make_uniform_report(self):
+        results = [
+            {"position": i, "name": f"D{i}", "scores": [10.0]*3,
+             "average": 10.0, "level": "Mature"}
+            for i in range(10)
+        ]
+        return axiom.build_report("Test Org", results)
+
+    def _make_varied_report(self):
+        avgs = [7.0] * 10
+        avgs[5] = 2.0
+        results = [
+            {"position": i, "name": f"D{i}", "scores": [a]*3,
+             "average": a, "level": axiom.get_category(a)}
+            for i, a in enumerate(avgs)
+        ]
+        return axiom.build_report("Test Org", results)
+
+    def test_uniform_report_prints_no_gap_message(self):
+        import io
+        from contextlib import redirect_stdout
+        report = self._make_uniform_report()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            axiom.print_report(report)
+        output = buf.getvalue()
+        self.assertIn("no gap identified", output.lower())
+        self.assertNotIn("TOP GAP", output)
+
+    def test_varied_report_prints_top_gap(self):
+        import io
+        from contextlib import redirect_stdout
+        report = self._make_varied_report()
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            axiom.print_report(report)
+        output = buf.getvalue()
+        self.assertIn("TOP GAP", output)
+
+
+# ── print_comparison ──────────────────────────────────────────────────────────
+
+class TestPrintComparison(unittest.TestCase):
+    def _make_report(self, org, averages):
+        results = [
+            {"position": i, "name": axiom.DIMENSIONS[i]["name"],
+             "scores": [a]*3, "average": a, "level": axiom.get_category(a)}
+            for i, a in enumerate(averages)
+        ]
+        return axiom.build_report(org, results)
+
+    def test_comparison_runs_without_error(self):
+        import io
+        from contextlib import redirect_stdout
+        a = self._make_report("Org A", [7.0] * 10)
+        b = self._make_report("Org B", [8.0] * 10)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            axiom.print_comparison(a, b)
+        output = buf.getvalue()
+        self.assertIn("Org A", output)
+        self.assertIn("Org B", output)
+
+    def test_comparison_shows_delta(self):
+        import io
+        from contextlib import redirect_stdout
+        a = self._make_report("Org A", [5.0] * 10)
+        b = self._make_report("Org B", [8.0] * 10)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            axiom.print_comparison(a, b)
+        output = buf.getvalue()
+        self.assertIn("+3.00", output)
+
+    def test_comparison_identifies_largest_gain(self):
+        import io
+        from contextlib import redirect_stdout
+        avgs_a = [5.0] * 10
+        avgs_b = [5.0] * 10
+        avgs_b[3] = 9.0  # big gain at position 3
+        a = self._make_report("Org A", avgs_a)
+        b = self._make_report("Org B", avgs_b)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            axiom.print_comparison(a, b)
+        output = buf.getvalue()
+        self.assertIn("LARGEST GAIN", output)
+        self.assertIn("UNDERSTANDING", output)
+
+    def test_comparison_identifies_largest_drop(self):
+        import io
+        from contextlib import redirect_stdout
+        avgs_a = [8.0] * 10
+        avgs_b = [8.0] * 10
+        avgs_b[7] = 3.0  # big drop at position 7
+        a = self._make_report("Org A", avgs_a)
+        b = self._make_report("Org B", avgs_b)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            axiom.print_comparison(a, b)
+        output = buf.getvalue()
+        self.assertIn("LARGEST DROP", output)
+        self.assertIn("CONSCIOUSNESS", output)
+
+    def test_no_movement_message_when_identical(self):
+        import io
+        from contextlib import redirect_stdout
+        a = self._make_report("Org A", [7.0] * 10)
+        b = self._make_report("Org B", [7.0] * 10)
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            axiom.print_comparison(a, b)
+        output = buf.getvalue()
+        self.assertIn("No movement", output)
+
+
+# ── run_comparison file loading ───────────────────────────────────────────────
+
+class TestRunComparison(unittest.TestCase):
+    def _write_report(self, path, org, averages):
+        results = [
+            {"position": i, "name": axiom.DIMENSIONS[i]["name"],
+             "scores": [a]*3, "average": a, "level": axiom.get_category(a)}
+            for i, a in enumerate(averages)
+        ]
+        report = axiom.build_report(org, results)
+        with open(path, "w") as f:
+            json.dump(report, f)
+
+    def test_compare_two_files(self):
+        import io
+        import tempfile
+        from contextlib import redirect_stdout
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path_a = os.path.join(tmpdir, "a.json")
+            path_b = os.path.join(tmpdir, "b.json")
+            self._write_report(path_a, "Org A", [5.0] * 10)
+            self._write_report(path_b, "Org B", [8.0] * 10)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                axiom.run_comparison(path_a, path_b)
+            output = buf.getvalue()
+            self.assertIn("Org A", output)
+            self.assertIn("Org B", output)
+
+    def test_missing_file_exits(self):
+        with self.assertRaises(SystemExit):
+            axiom.run_comparison("/nonexistent/a.json", "/nonexistent/b.json")
+
+
 if __name__ == "__main__":
     unittest.main()
