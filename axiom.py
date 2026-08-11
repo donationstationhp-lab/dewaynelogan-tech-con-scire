@@ -232,6 +232,172 @@ def write_report(report: dict, directory: str) -> str:
     return filepath
 
 
+# ── Ecosystem logic ───────────────────────────────────────────────────────────
+
+STRENGTH_THRESHOLD = 9.0
+
+
+def calculate_pairwise_distances(reports: list) -> list:
+    """Return all org pairs sorted by relational distance (sum of dim deltas)."""
+    orgs = [
+        (r["organization"], {d["position"]: d["average"] for d in r["dimensions"]})
+        for r in reports
+    ]
+    pairs = []
+    for i in range(len(orgs)):
+        for j in range(i + 1, len(orgs)):
+            name_a, dims_a = orgs[i]
+            name_b, dims_b = orgs[j]
+            distance = round(
+                sum(abs(dims_a.get(p, 0) - dims_b.get(p, 0)) for p in range(10)), 2
+            )
+            pairs.append({"orgs": [name_a, name_b], "distance": distance})
+    pairs.sort(key=lambda x: x["distance"])
+    return pairs
+
+
+def build_ecosystem_report(reports: list, source_files: list = None) -> dict:
+    """Assemble an ecosystem report from a list of individual assessment reports."""
+    org_names = [r["organization"] for r in reports]
+    org_aggregates = [r["aggregate_score"] for r in reports]
+    ecosystem_aggregate = round(sum(org_aggregates) / len(org_aggregates), 2)
+
+    dim_analysis = []
+    for pos in range(10):
+        dim_name = DIMENSIONS[pos]["name"]
+        scores = {}
+        for r in reports:
+            for d in r["dimensions"]:
+                if d["position"] == pos:
+                    scores[r["organization"]] = d["average"]
+        values = list(scores.values())
+        avg = round(sum(values) / len(values), 2)
+        dim_analysis.append({
+            "position": pos,
+            "name": dim_name,
+            "scores": scores,
+            "average": avg,
+            "min": round(min(values), 2),
+            "max": round(max(values), 2),
+            "level": get_category(avg),
+            "uniform": len(set(values)) == 1,
+        })
+
+    strengths = [d for d in dim_analysis if d["min"] >= STRENGTH_THRESHOLD]
+    vulnerabilities = []
+    for d in dim_analysis:
+        gaps = {org: score for org, score in d["scores"].items()
+                if score < STRENGTH_THRESHOLD}
+        if gaps:
+            vulnerabilities.append({
+                "position": d["position"],
+                "name": d["name"],
+                "gaps": gaps,
+            })
+
+    pairs = calculate_pairwise_distances(reports) if len(reports) > 1 else []
+
+    return {
+        "type": "ecosystem",
+        "timestamp": datetime.now().isoformat(),
+        "organization_count": len(reports),
+        "organizations": org_names,
+        "dimensions": dim_analysis,
+        "ecosystem_aggregate": ecosystem_aggregate,
+        "ecosystem_level": get_category(ecosystem_aggregate),
+        "collective_strengths": strengths,
+        "shared_vulnerabilities": vulnerabilities,
+        "relational_map": {
+            "closest": pairs[0] if pairs else None,
+            "most_divergent": pairs[-1] if pairs else None,
+            "all_pairs": pairs,
+        },
+        "source_files": source_files or [],
+    }
+
+
+def write_ecosystem_report(report: dict, directory: str) -> str:
+    """Write the ecosystem report as a JSON file. Returns the file path written."""
+    os.makedirs(directory, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filepath = os.path.join(directory, f"ecosystem_{timestamp}.json")
+    with open(filepath, "w") as f:
+        json.dump(report, f, indent=2)
+    return filepath
+
+
+def print_ecosystem_report(report: dict) -> None:
+    """Print the ecosystem report to the terminal."""
+    sep = "═" * 70
+    thin = "─" * 70
+
+    print(f"\n{sep}")
+    print(f"  AXIOM ECOSYSTEM REPORT")
+    print(f"  {report['organization_count']} organizations  ·  "
+          f"{report['timestamp'][:10]}")
+    print(f"{sep}")
+
+    for org in report["organizations"]:
+        agg = next(
+            (r["aggregate_score"] for r in [report] if False), None
+        )
+        # pull from source data embedded in dimension scores
+        org_agg = round(
+            sum(d["scores"].get(org, 0) for d in report["dimensions"]) /
+            len(report["dimensions"]), 2
+        )
+        level = get_category(org_agg)
+        print(f"  · {org:<40} {org_agg:>6.2f}  {level}")
+
+    print(f"{thin}")
+    print(f"  {'ECOSYSTEM AGGREGATE':<44} {report['ecosystem_aggregate']:>6.2f}"
+          f"  {report['ecosystem_level']}")
+    print(f"{sep}")
+
+    print(f"\n  {'POS':<4} {'DIMENSION':<22} {'AVG':>6}  {'MIN':>6}  {'MAX':>6}  VAR")
+    print(f"  {'---':<4} {'---------':<22} {'---':>6}  {'---':>6}  {'---':>6}  ---")
+    for d in report["dimensions"]:
+        spread = round(d["max"] - d["min"], 2)
+        var_mark = f"{spread:+.2f}" if spread > 0 else "─"
+        print(
+            f"  {d['position']:<4} {d['name']:<22} {d['average']:>6.2f}  "
+            f"{d['min']:>6.2f}  {d['max']:>6.2f}  {var_mark}"
+        )
+    print(f"{sep}")
+
+    strengths = report["collective_strengths"]
+    vulns = report["shared_vulnerabilities"]
+
+    print(f"\n  COLLECTIVE STRENGTHS  (all orgs ≥ {STRENGTH_THRESHOLD:.0f}.0)")
+    if strengths:
+        for s in strengths:
+            print(f"    · Position {s['position']}: {s['name']}")
+    else:
+        print(f"    None — variance exists across all dimensions")
+
+    print(f"\n  SHARED VULNERABILITIES  (any org < {STRENGTH_THRESHOLD:.0f}.0)")
+    if vulns:
+        for v in vulns:
+            for org, score in v["gaps"].items():
+                print(f"    · Position {v['position']}: {v['name']}"
+                      f" — {org} at {score:.2f}")
+    else:
+        print(f"    None — all organizations above threshold on every dimension")
+
+    rm = report["relational_map"]
+    if rm["closest"] or rm["most_divergent"]:
+        print(f"\n  RELATIONAL MAP")
+        if rm["closest"]:
+            c = rm["closest"]
+            print(f"    Closest      →  {c['orgs'][0]}  ↔  {c['orgs'][1]}"
+                  f"  (distance {c['distance']:.2f})")
+        if rm["most_divergent"] and rm["most_divergent"] != rm["closest"]:
+            d = rm["most_divergent"]
+            print(f"    Most divergent →  {d['orgs'][0]}  ↔  {d['orgs'][1]}"
+                  f"  (distance {d['distance']:.2f})")
+    print()
+
+
 # ── Terminal output ───────────────────────────────────────────────────────────
 
 def print_report(report: dict) -> None:
@@ -479,6 +645,50 @@ def run_comparison(path_a: str, path_b: str) -> None:
     print_comparison(report_a, report_b)
 
 
+def run_ecosystem(files: list = None, assessments_dir: str = "assessments") -> None:
+    """Load reports and produce an ecosystem reading.
+
+    If files is empty/None, discovers all non-ecosystem assessment JSONs
+    in assessments_dir. Otherwise uses the specified file paths.
+    """
+    if files:
+        paths = files
+    else:
+        if not os.path.isdir(assessments_dir):
+            print(f"No assessments directory found at '{assessments_dir}'.")
+            print("Run an assessment first, or specify files explicitly.")
+            sys.exit(1)
+        paths = sorted(
+            os.path.join(assessments_dir, f)
+            for f in os.listdir(assessments_dir)
+            if f.endswith(".json") and not f.startswith("ecosystem_")
+        )
+        if not paths:
+            print(f"No assessment files found in '{assessments_dir}'.")
+            sys.exit(1)
+
+    reports = []
+    for path in paths:
+        if not os.path.exists(path):
+            print(f"File not found: {path}")
+            sys.exit(1)
+        with open(path) as f:
+            data = json.load(f)
+        if data.get("type") == "ecosystem":
+            print(f"Skipping ecosystem file: {path}")
+            continue
+        reports.append(data)
+
+    if len(reports) < 2:
+        print("Ecosystem requires at least 2 organization assessments.")
+        sys.exit(1)
+
+    report = build_ecosystem_report(reports, source_files=paths)
+    print_ecosystem_report(report)
+    filepath = write_ecosystem_report(report, assessments_dir)
+    print(f"  Ecosystem report saved → {filepath}\n")
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -489,7 +699,9 @@ def main() -> None:
             "Examples:\n"
             "  python axiom.py\n"
             "  python axiom.py --multi\n"
-            "  python axiom.py --compare assessments/OrgA.json assessments/OrgB.json"
+            "  python axiom.py --compare assessments/OrgA.json assessments/OrgB.json\n"
+            "  python axiom.py --ecosystem\n"
+            "  python axiom.py --ecosystem assessments/OrgA.json assessments/OrgB.json"
         ),
     )
     parser.add_argument(
@@ -503,10 +715,21 @@ def main() -> None:
         metavar=("FILE_A", "FILE_B"),
         help="Compare two saved assessment JSON files",
     )
+    parser.add_argument(
+        "--ecosystem",
+        nargs="*",
+        metavar="FILE",
+        help=(
+            "Ecosystem mode: no args = all files in assessments/, "
+            "or specify individual JSON files"
+        ),
+    )
     args = parser.parse_args()
 
     if args.compare:
         run_comparison(args.compare[0], args.compare[1])
+    elif args.ecosystem is not None:
+        run_ecosystem(files=args.ecosystem if args.ecosystem else None)
     elif args.multi:
         run_multi_assessment()
     else:
