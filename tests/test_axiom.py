@@ -611,5 +611,263 @@ class TestRunComparison(unittest.TestCase):
             axiom.run_comparison("/nonexistent/a.json", "/nonexistent/b.json")
 
 
+# ── calculate_pairwise_distances ──────────────────────────────────────────────
+
+class TestCalculatePairwiseDistances(unittest.TestCase):
+    def _make_report(self, org, averages):
+        results = [
+            {"position": i, "name": axiom.DIMENSIONS[i]["name"],
+             "scores": [a]*3, "average": a, "level": axiom.get_category(a)}
+            for i, a in enumerate(averages)
+        ]
+        return axiom.build_report(org, results)
+
+    def test_identical_orgs_distance_zero(self):
+        a = self._make_report("Org A", [10.0]*10)
+        b = self._make_report("Org B", [10.0]*10)
+        pairs = axiom.calculate_pairwise_distances([a, b])
+        self.assertEqual(pairs[0]["distance"], 0.0)
+
+    def test_single_dim_difference(self):
+        avgs_a = [10.0]*10
+        avgs_b = [10.0]*10
+        avgs_b[6] = 8.33
+        a = self._make_report("Org A", avgs_a)
+        b = self._make_report("Org B", avgs_b)
+        pairs = axiom.calculate_pairwise_distances([a, b])
+        self.assertAlmostEqual(pairs[0]["distance"], 1.67, places=1)
+
+    def test_pairs_sorted_by_distance(self):
+        a = self._make_report("A", [10.0]*10)
+        b = self._make_report("B", [9.0]*10)   # dist 10
+        c = self._make_report("C", [5.0]*10)   # dist 50 from A
+        pairs = axiom.calculate_pairwise_distances([a, b, c])
+        distances = [p["distance"] for p in pairs]
+        self.assertEqual(distances, sorted(distances))
+
+    def test_three_orgs_produces_three_pairs(self):
+        reports = [self._make_report(f"Org{i}", [float(i+5)]*10) for i in range(3)]
+        pairs = axiom.calculate_pairwise_distances(reports)
+        self.assertEqual(len(pairs), 3)
+
+    def test_pair_contains_org_names(self):
+        a = self._make_report("Alpha", [10.0]*10)
+        b = self._make_report("Beta", [8.0]*10)
+        pairs = axiom.calculate_pairwise_distances([a, b])
+        orgs = pairs[0]["orgs"]
+        self.assertIn("Alpha", orgs)
+        self.assertIn("Beta", orgs)
+
+
+# ── build_ecosystem_report ────────────────────────────────────────────────────
+
+class TestBuildEcosystemReport(unittest.TestCase):
+    def _make_report(self, org, averages):
+        results = [
+            {"position": i, "name": axiom.DIMENSIONS[i]["name"],
+             "scores": [a]*3, "average": a, "level": axiom.get_category(a)}
+            for i, a in enumerate(averages)
+        ]
+        return axiom.build_report(org, results)
+
+    def test_organization_count(self):
+        reports = [self._make_report(f"Org{i}", [10.0]*10) for i in range(3)]
+        eco = axiom.build_ecosystem_report(reports)
+        self.assertEqual(eco["organization_count"], 3)
+
+    def test_organization_names_present(self):
+        reports = [self._make_report("Alpha", [10.0]*10),
+                   self._make_report("Beta", [8.0]*10)]
+        eco = axiom.build_ecosystem_report(reports)
+        self.assertIn("Alpha", eco["organizations"])
+        self.assertIn("Beta", eco["organizations"])
+
+    def test_ecosystem_aggregate_uniform(self):
+        reports = [self._make_report(f"Org{i}", [8.0]*10) for i in range(3)]
+        eco = axiom.build_ecosystem_report(reports)
+        self.assertAlmostEqual(eco["ecosystem_aggregate"], 8.0)
+
+    def test_ecosystem_aggregate_mixed(self):
+        a = self._make_report("A", [10.0]*10)
+        b = self._make_report("B", [8.0]*10)
+        eco = axiom.build_ecosystem_report([a, b])
+        self.assertAlmostEqual(eco["ecosystem_aggregate"], 9.0)
+
+    def test_collective_strengths_all_above_threshold(self):
+        reports = [self._make_report(f"Org{i}", [9.5]*10) for i in range(2)]
+        eco = axiom.build_ecosystem_report(reports)
+        self.assertEqual(len(eco["collective_strengths"]), 10)
+
+    def test_collective_strengths_excludes_below_threshold(self):
+        avgs_a = [10.0]*10
+        avgs_b = [10.0]*10
+        avgs_b[5] = 8.0  # below 9.0
+        a = self._make_report("A", avgs_a)
+        b = self._make_report("B", avgs_b)
+        eco = axiom.build_ecosystem_report([a, b])
+        strength_positions = [s["position"] for s in eco["collective_strengths"]]
+        self.assertNotIn(5, strength_positions)
+
+    def test_shared_vulnerabilities_detected(self):
+        avgs_a = [10.0]*10
+        avgs_b = [10.0]*10
+        avgs_b[6] = 8.33  # below threshold
+        a = self._make_report("A", avgs_a)
+        b = self._make_report("B", avgs_b)
+        eco = axiom.build_ecosystem_report([a, b])
+        vuln_positions = [v["position"] for v in eco["shared_vulnerabilities"]]
+        self.assertIn(6, vuln_positions)
+
+    def test_no_vulnerabilities_when_all_strong(self):
+        reports = [self._make_report(f"Org{i}", [9.5]*10) for i in range(2)]
+        eco = axiom.build_ecosystem_report(reports)
+        self.assertEqual(len(eco["shared_vulnerabilities"]), 0)
+
+    def test_relational_map_present(self):
+        reports = [self._make_report(f"Org{i}", [float(i+7)]*10) for i in range(2)]
+        eco = axiom.build_ecosystem_report(reports)
+        self.assertIn("closest", eco["relational_map"])
+        self.assertIn("most_divergent", eco["relational_map"])
+
+    def test_type_field_is_ecosystem(self):
+        reports = [self._make_report(f"Org{i}", [10.0]*10) for i in range(2)]
+        eco = axiom.build_ecosystem_report(reports)
+        self.assertEqual(eco["type"], "ecosystem")
+
+    def test_ten_dimensions_in_output(self):
+        reports = [self._make_report(f"Org{i}", [10.0]*10) for i in range(2)]
+        eco = axiom.build_ecosystem_report(reports)
+        self.assertEqual(len(eco["dimensions"]), 10)
+
+    def test_dimension_min_max_correct(self):
+        avgs_a = [10.0]*10
+        avgs_b = [6.0]*10
+        a = self._make_report("A", avgs_a)
+        b = self._make_report("B", avgs_b)
+        eco = axiom.build_ecosystem_report([a, b])
+        for d in eco["dimensions"]:
+            self.assertAlmostEqual(d["min"], 6.0)
+            self.assertAlmostEqual(d["max"], 10.0)
+            self.assertAlmostEqual(d["average"], 8.0)
+
+    def test_source_files_stored(self):
+        reports = [self._make_report(f"Org{i}", [10.0]*10) for i in range(2)]
+        eco = axiom.build_ecosystem_report(reports, source_files=["a.json", "b.json"])
+        self.assertEqual(eco["source_files"], ["a.json", "b.json"])
+
+
+# ── write_ecosystem_report ────────────────────────────────────────────────────
+
+class TestWriteEcosystemReport(unittest.TestCase):
+    def _make_eco(self):
+        def make_report(org, avg):
+            results = [
+                {"position": i, "name": axiom.DIMENSIONS[i]["name"],
+                 "scores": [avg]*3, "average": avg, "level": axiom.get_category(avg)}
+                for i in range(10)
+            ]
+            return axiom.build_report(org, results)
+        reports = [make_report("A", 10.0), make_report("B", 9.0)]
+        return axiom.build_ecosystem_report(reports)
+
+    def test_file_created(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            eco = self._make_eco()
+            path = axiom.write_ecosystem_report(eco, tmpdir)
+            self.assertTrue(os.path.exists(path))
+
+    def test_filename_starts_with_ecosystem(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            eco = self._make_eco()
+            path = axiom.write_ecosystem_report(eco, tmpdir)
+            self.assertTrue(os.path.basename(path).startswith("ecosystem_"))
+
+    def test_file_is_valid_json(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            eco = self._make_eco()
+            path = axiom.write_ecosystem_report(eco, tmpdir)
+            with open(path) as f:
+                data = json.load(f)
+            self.assertEqual(data["type"], "ecosystem")
+
+
+# ── run_ecosystem file discovery ──────────────────────────────────────────────
+
+class TestRunEcosystem(unittest.TestCase):
+    def _write_org_report(self, directory, org, avg):
+        results = [
+            {"position": i, "name": axiom.DIMENSIONS[i]["name"],
+             "scores": [avg]*3, "average": avg, "level": axiom.get_category(avg)}
+            for i in range(10)
+        ]
+        report = axiom.build_report(org, results)
+        path = os.path.join(directory, f"{axiom.make_safe_name(org)}.json")
+        with open(path, "w") as f:
+            json.dump(report, f)
+        return path
+
+    def test_runs_with_explicit_files(self):
+        import io, tempfile
+        from contextlib import redirect_stdout
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p1 = self._write_org_report(tmpdir, "Org A", 10.0)
+            p2 = self._write_org_report(tmpdir, "Org B", 8.0)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                axiom.run_ecosystem(files=[p1, p2], assessments_dir=tmpdir)
+            self.assertIn("AXIOM ECOSYSTEM REPORT", buf.getvalue())
+
+    def test_auto_discovers_files(self):
+        import io, tempfile
+        from contextlib import redirect_stdout
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._write_org_report(tmpdir, "Org A", 10.0)
+            self._write_org_report(tmpdir, "Org B", 9.0)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                axiom.run_ecosystem(files=None, assessments_dir=tmpdir)
+            self.assertIn("AXIOM ECOSYSTEM REPORT", buf.getvalue())
+
+    def test_skips_ecosystem_files_in_discovery(self):
+        import io, tempfile
+        from contextlib import redirect_stdout
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._write_org_report(tmpdir, "Org A", 10.0)
+            self._write_org_report(tmpdir, "Org B", 9.0)
+            # Write a fake ecosystem file that should be skipped
+            eco_path = os.path.join(tmpdir, "ecosystem_fake.json")
+            with open(eco_path, "w") as f:
+                json.dump({"type": "ecosystem"}, f)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                axiom.run_ecosystem(files=None, assessments_dir=tmpdir)
+            self.assertIn("AXIOM ECOSYSTEM REPORT", buf.getvalue())
+
+    def test_exits_when_fewer_than_two_reports(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmpdir:
+            p1 = self._write_org_report(tmpdir, "Org A", 10.0)
+            with self.assertRaises(SystemExit):
+                axiom.run_ecosystem(files=[p1], assessments_dir=tmpdir)
+
+    def test_exits_when_directory_missing(self):
+        with self.assertRaises(SystemExit):
+            axiom.run_ecosystem(files=None, assessments_dir="/nonexistent/path")
+
+    def test_writes_ecosystem_json(self):
+        import io, tempfile
+        from contextlib import redirect_stdout
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self._write_org_report(tmpdir, "Org A", 10.0)
+            self._write_org_report(tmpdir, "Org B", 9.0)
+            with redirect_stdout(io.StringIO()):
+                axiom.run_ecosystem(files=None, assessments_dir=tmpdir)
+            eco_files = [f for f in os.listdir(tmpdir) if f.startswith("ecosystem_")]
+            self.assertEqual(len(eco_files), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
