@@ -8,9 +8,12 @@ via three sub-questions on a 1–10 scale. Scores aggregate to a
 categorical level and a single composite reading.
 
 Usage:
-    python axiom.py
+    python axiom.py                          # single-assessor intake
+    python axiom.py --multi                  # multi-assessor intake (averages N scorers)
+    python axiom.py --compare a.json b.json  # compare two assessment files
 """
 
+import argparse
 import json
 import os
 import sys
@@ -181,17 +184,23 @@ def find_top_gap(results: list) -> dict:
     return min(results, key=lambda r: r["average"])
 
 
+def scores_are_uniform(results: list) -> bool:
+    """Return True if all dimension averages are equal."""
+    averages = [r["average"] for r in results]
+    return len(set(averages)) == 1
+
+
 def make_safe_name(org_name: str) -> str:
     """Return a filesystem-safe version of an organization name."""
     return "".join(c if c.isalnum() else "_" for c in org_name)
 
 
-def build_report(org_name: str, results: list) -> dict:
+def build_report(org_name: str, results: list, assessors: list = None) -> dict:
     """Assemble the full assessment report dictionary."""
     position_averages = [r["average"] for r in results]
     aggregate = calculate_aggregate(position_averages)
     gap = find_top_gap(results)
-    return {
+    report = {
         "organization": org_name,
         "timestamp": datetime.now().isoformat(),
         "dimensions": results,
@@ -203,7 +212,12 @@ def build_report(org_name: str, results: list) -> dict:
             "score": gap["average"],
             "level": gap["level"],
         },
+        "uniform": scores_are_uniform(results),
     }
+    if assessors:
+        report["assessors"] = assessors
+        report["assessor_count"] = len(assessors)
+    return report
 
 
 def write_report(report: dict, directory: str) -> str:
@@ -217,6 +231,7 @@ def write_report(report: dict, directory: str) -> str:
         json.dump(report, f, indent=2)
     return filepath
 
+
 # ── Terminal output ───────────────────────────────────────────────────────────
 
 def print_report(report: dict) -> None:
@@ -227,6 +242,9 @@ def print_report(report: dict) -> None:
     print(f"{sep}")
     print(f"  Organization : {report['organization']}")
     print(f"  Assessed     : {report['timestamp'][:19].replace('T', '  ')}")
+    if report.get("assessor_count", 1) > 1:
+        names = ", ".join(report.get("assessors", []))
+        print(f"  Assessors    : {report['assessor_count']}  ({names})")
     print(f"{sep}")
     print(f"  {'POS':<4} {'DIMENSION':<25} {'SCORE':>6}  {'LEVEL'}")
     print(f"  {'---':<4} {'---------':<25} {'-----':>6}  {'-----'}")
@@ -239,15 +257,75 @@ def print_report(report: dict) -> None:
         f"  {'AGGREGATE':<29} {report['aggregate_score']:>6.2f}  {report['aggregate_level']}"
     )
     print(f"{sep}")
-    gap = report["top_gap"]
+
+    if report.get("uniform"):
+        print(f"\n  All dimensions scored equally — no gap identified.\n")
+    else:
+        gap = report["top_gap"]
+        print(f"\n  TOP GAP  →  Position {gap['position']}: {gap['name']}")
+        print(f"             Score {gap['score']:.2f} — {gap['level']}")
+        print(f"\n  Action: Prioritize investment in {gap['name']} before")
+        print(f"          scaling other dimensions.\n")
+
+
+def print_comparison(report_a: dict, report_b: dict) -> None:
+    """Print a side-by-side comparison of two assessment reports."""
+    sep = "─" * 70
+    name_a = report_a["organization"]
+    name_b = report_b["organization"]
+    date_a = report_a["timestamp"][:10]
+    date_b = report_b["timestamp"][:10]
+
+    print(f"\n{sep}")
+    print(f"  AXIOM COMPARISON")
+    print(f"{sep}")
+    print(f"  A: {name_a:<36} {date_a}")
+    print(f"  B: {name_b:<36} {date_b}")
+    print(f"{sep}")
+    print(f"  {'POS':<4} {'DIMENSION':<22} {'SCORE A':>7}  {'SCORE B':>7}  {'DELTA':>7}  {'MOVE'}")
+    print(f"  {'---':<4} {'---------':<22} {'-------':>7}  {'-------':>7}  {'-----':>7}  {'----'}")
+
+    dims_a = {d["position"]: d for d in report_a["dimensions"]}
+    dims_b = {d["position"]: d for d in report_b["dimensions"]}
+    deltas = []
+
+    for pos in range(10):
+        da = dims_a.get(pos)
+        db = dims_b.get(pos)
+        if not da or not db:
+            continue
+        delta = round(db["average"] - da["average"], 2)
+        deltas.append((pos, da["name"], delta))
+        arrow = "▲" if delta > 0 else ("▼" if delta < 0 else "─")
+        print(
+            f"  {pos:<4} {da['name']:<22} {da['average']:>7.2f}  {db['average']:>7.2f}  "
+            f"{delta:>+7.2f}  {arrow}"
+        )
+
+    agg_a = report_a["aggregate_score"]
+    agg_b = report_b["aggregate_score"]
+    agg_delta = round(agg_b - agg_a, 2)
+    agg_arrow = "▲" if agg_delta > 0 else ("▼" if agg_delta < 0 else "─")
+    print(f"{sep}")
     print(
-        f"\n  TOP GAP  →  Position {gap['position']}: {gap['name']}"
+        f"  {'AGGREGATE':<26} {agg_a:>7.2f}  {agg_b:>7.2f}  "
+        f"{agg_delta:>+7.2f}  {agg_arrow}"
     )
-    print(
-        f"             Score {gap['score']:.2f} — {gap['level']}"
-    )
-    print(f"\n  Action: Prioritize investment in {gap['name']} before")
-    print(f"          scaling other dimensions.\n")
+    print(f"{sep}")
+
+    gains = [(pos, name, d) for pos, name, d in deltas if d > 0]
+    losses = [(pos, name, d) for pos, name, d in deltas if d < 0]
+
+    if gains:
+        best = max(gains, key=lambda x: x[2])
+        print(f"\n  LARGEST GAIN  →  Position {best[0]}: {best[1]}  ({best[2]:+.2f})")
+    if losses:
+        worst = min(losses, key=lambda x: x[2])
+        print(f"  LARGEST DROP  →  Position {worst[0]}: {worst[1]}  ({worst[2]:+.2f})")
+    if not gains and not losses:
+        print(f"\n  No movement between assessments.")
+    print()
+
 
 # ── CLI intake ────────────────────────────────────────────────────────────────
 
@@ -267,25 +345,11 @@ def prompt_score(question: str, sub_num: int) -> float:
             sys.exit(0)
 
 
-def run_assessment(assessments_dir: str = "assessments") -> None:
-    """Interactive CLI assessment loop."""
-    print("\n" + "=" * 62)
-    print("  AXIOM — Decinary Diagnostic Tool")
-    print("  Ten dimensions. Honest numbers. Actionable gaps.")
-    print("=" * 62)
-
-    try:
-        org_name = input("\n  Organization being assessed: ").strip()
-    except (EOFError, KeyboardInterrupt):
-        print("\nAssessment cancelled.")
-        sys.exit(0)
-
-    if not org_name:
-        print("Organization name cannot be blank.")
-        sys.exit(1)
-
-    print(f"\n  Assessing: {org_name}")
-    print(f"  You will answer 3 questions per dimension (30 total).")
+def _collect_scores(org_name: str, assessor_label: str = "") -> list:
+    """Walk through all ten dimensions and collect scores. Returns results list."""
+    label = f" ({assessor_label})" if assessor_label else ""
+    print(f"\n  Assessing: {org_name}{label}")
+    print(f"  Answer 3 questions per dimension (30 total).")
     print(f"  Score each question from 1 (lowest) to 10 (highest).\n")
 
     results = []
@@ -308,18 +372,146 @@ def run_assessment(assessments_dir: str = "assessments") -> None:
             }
         )
         print(f"     → {dim['name']}: {avg:.2f}  [{level}]")
+    return results
 
+
+def run_assessment(assessments_dir: str = "assessments") -> None:
+    """Single-assessor interactive CLI."""
+    print("\n" + "=" * 62)
+    print("  AXIOM — Decinary Diagnostic Tool")
+    print("  Ten dimensions. Honest numbers. Actionable gaps.")
+    print("=" * 62)
+
+    try:
+        org_name = input("\n  Organization being assessed: ").strip()
+    except (EOFError, KeyboardInterrupt):
+        print("\nAssessment cancelled.")
+        sys.exit(0)
+
+    if not org_name:
+        print("Organization name cannot be blank.")
+        sys.exit(1)
+
+    results = _collect_scores(org_name)
     report = build_report(org_name, results)
-
-    # Terminal output
     print_report(report)
-
-    # File output
     filepath = write_report(report, assessments_dir)
     print(f"  Report saved → {filepath}\n")
 
 
+def run_multi_assessment(assessments_dir: str = "assessments") -> None:
+    """Multi-assessor interactive CLI — averages scores across N scorers."""
+    print("\n" + "=" * 62)
+    print("  AXIOM — Decinary Diagnostic Tool  [Multi-Assessor]")
+    print("  Scores averaged across all assessors.")
+    print("=" * 62)
+
+    try:
+        org_name = input("\n  Organization being assessed: ").strip()
+        if not org_name:
+            print("Organization name cannot be blank.")
+            sys.exit(1)
+
+        raw = input("  Number of assessors (2–10): ").strip()
+        n = int(raw)
+        if not 2 <= n <= 10:
+            print("  Enter a number between 2 and 10.")
+            sys.exit(1)
+    except (EOFError, KeyboardInterrupt):
+        print("\nAssessment cancelled.")
+        sys.exit(0)
+    except ValueError:
+        print("  Enter a valid number.")
+        sys.exit(1)
+
+    all_results = []
+    assessor_names = []
+    for i in range(1, n + 1):
+        try:
+            name = input(f"\n  Assessor {i} name: ").strip() or f"Assessor {i}"
+        except (EOFError, KeyboardInterrupt):
+            print("\nAssessment cancelled.")
+            sys.exit(0)
+        assessor_names.append(name)
+        print(f"\n{'─' * 62}")
+        print(f"  Scoring by: {name}")
+        print(f"{'─' * 62}")
+        results = _collect_scores(org_name, assessor_label=name)
+        all_results.append(results)
+
+    # Average sub-scores across all assessors per dimension per question
+    averaged_results = []
+    for dim_idx, dim in enumerate(DIMENSIONS):
+        averaged_sub_scores = []
+        for q_idx in range(3):
+            avg_score = round(
+                sum(all_results[a][dim_idx]["scores"][q_idx] for a in range(n)) / n, 2
+            )
+            averaged_sub_scores.append(avg_score)
+        avg = calculate_position_score(averaged_sub_scores)
+        level = get_category(avg)
+        averaged_results.append(
+            {
+                "position": dim["position"],
+                "name": dim["name"],
+                "scores": averaged_sub_scores,
+                "average": avg,
+                "level": level,
+            }
+        )
+
+    report = build_report(org_name, averaged_results, assessors=assessor_names)
+    print_report(report)
+    filepath = write_report(report, assessments_dir)
+    print(f"  Report saved → {filepath}\n")
+
+
+def run_comparison(path_a: str, path_b: str) -> None:
+    """Load two JSON reports and print a comparison."""
+    for path in (path_a, path_b):
+        if not os.path.exists(path):
+            print(f"File not found: {path}")
+            sys.exit(1)
+    with open(path_a) as f:
+        report_a = json.load(f)
+    with open(path_b) as f:
+        report_b = json.load(f)
+    print_comparison(report_a, report_b)
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="AXIOM — Decinary Diagnostic Tool",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=(
+            "Examples:\n"
+            "  python axiom.py\n"
+            "  python axiom.py --multi\n"
+            "  python axiom.py --compare assessments/OrgA.json assessments/OrgB.json"
+        ),
+    )
+    parser.add_argument(
+        "--multi",
+        action="store_true",
+        help="Multi-assessor mode: average scores from N scorers",
+    )
+    parser.add_argument(
+        "--compare",
+        nargs=2,
+        metavar=("FILE_A", "FILE_B"),
+        help="Compare two saved assessment JSON files",
+    )
+    args = parser.parse_args()
+
+    if args.compare:
+        run_comparison(args.compare[0], args.compare[1])
+    elif args.multi:
+        run_multi_assessment()
+    else:
+        run_assessment()
+
+
 if __name__ == "__main__":
-    run_assessment()
+    main()
