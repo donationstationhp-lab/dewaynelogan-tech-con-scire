@@ -209,6 +209,39 @@ def stage_health(stage, assessment):
     ]
 
 
+def org_born(assessment, founding_date=None):
+    """Derive the Power Connection born number from the org's founding date."""
+    date_str = founding_date or assessment.get("founding_date", "")
+    if not date_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        return pc_born(dt.month, dt.day, dt.year)
+    except (ValueError, AttributeError):
+        return None
+
+
+def bridge_org(assessment, founding_date=None):
+    """
+    Produce a self-referential reading for the org:
+    founding date → born number → AXIOM position → org health at that dimension.
+    Answers: is the org currently strong at the position its own origin governs?
+    """
+    b = org_born(assessment, founding_date)
+    gov_pos = map_born_to_position(b)
+    gov_dim = get_dim(gov_pos, assessment) if gov_pos is not None else None
+    return {
+        "organization": assessment.get("organization", "Unknown"),
+        "founding_date": founding_date or assessment.get("founding_date", ""),
+        "born": b,
+        "born_name": born_label(b),
+        "governing_position": gov_pos,
+        "governing_dimension": gov_dim,
+        "aggregate_score": assessment.get("aggregate_score"),
+        "aggregate_level": assessment.get("aggregate_level"),
+    }
+
+
 def donor_born(donor):
     """Derive the Power Connection born number from a donor's donation date."""
     date_str = donor.get("donation_date") or donor.get("donationDate", "")
@@ -270,6 +303,29 @@ def print_item_reading(reading, org_name):
         for d in reading["stage_dimensions"]:
             sig = _signal(d["average"])
             print(f"    P{d['position']}  {d['name']:<22}  {d['average']:.2f}  [{d['level']}]  {sig}")
+    print()
+
+
+def print_org_reading(reading):
+    org = reading["organization"]
+    print(f"\n{DBAR}")
+    print(f"  CON-SCIRE  ORIGIN  —  {org}")
+    print(f"  Founded: {reading['founding_date']}")
+    print(f"  Aggregate: {reading['aggregate_score']}  [{reading['aggregate_level']}]")
+    print(DBAR)
+    if reading["born"] is not None:
+        print(f"\n  Power Reading  →  Born {reading['born']}  [{reading['born_name']}]")
+        gd = reading["governing_dimension"]
+        if gd:
+            sig = _signal(gd["average"])
+            print(f"  Origin Dimension  →  Position {gd['position']}: {gd['name']}")
+            print(f"  {org}: {gd['average']:.2f}  [{gd['level']}]  {sig}")
+            if gd["average"] >= reading["aggregate_score"]:
+                print(f"  Origin held  —  org exceeds its governing position")
+            else:
+                print(f"  Origin gap  —  governing position below aggregate")
+    else:
+        print(f"\n  Power Reading  →  unavailable (no founding date)")
     print()
 
 
@@ -348,6 +404,8 @@ def main():
     parser.add_argument("--org", metavar="FILE", help="AXIOM assessment JSON")
     parser.add_argument("--station", action="store_true", help="Bridge all items")
     parser.add_argument("--donors", action="store_true", help="Bridge all donors")
+    parser.add_argument("--origin", action="store_true", help="Org self-referential reading")
+    parser.add_argument("--founded", metavar="DATE", help="Org founding date (YYYY-MM-DD)")
     parser.add_argument("--item", metavar="ID", help="Bridge one item by ID")
     parser.add_argument(
         "--stage", metavar="STAGE",
@@ -390,7 +448,9 @@ def main():
             items = load_items_from_file(default_data)
             donors = load_donors_from_file(default_data)
 
-    if args.donors:
+    if args.origin:
+        print_org_reading(bridge_org(assessment, args.founded))
+    elif args.donors:
         print(f"\n{DBAR}")
         print(f"  CON-SCIRE  DONORS  —  {org_name}")
         print(DBAR)

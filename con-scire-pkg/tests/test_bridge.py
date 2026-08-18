@@ -14,6 +14,8 @@ from bridge import (
     stage_health,
     donor_born,
     bridge_donor,
+    org_born,
+    bridge_org,
     BORN_TO_POSITION,
     STAGE_TO_POSITIONS,
 )
@@ -266,6 +268,77 @@ class TestBridgeDonor(unittest.TestCase):
 
     def test_governing_position_consistent_with_born(self):
         reading = bridge_donor(_make_donor(donation_date="2026-08-17"), self.assessment)
+        if reading["born"] is not None:
+            self.assertEqual(reading["governing_position"], map_born_to_position(reading["born"]))
+
+
+class TestOrgBorn(unittest.TestCase):
+    def test_founding_date_in_assessment(self):
+        assessment = _make_assessment()
+        assessment["founding_date"] = "2010-03-15"
+        born = org_born(assessment)
+        self.assertIsNotNone(born)
+        self.assertIsInstance(born, int)
+
+    def test_founding_date_override(self):
+        assessment = _make_assessment()
+        born = org_born(assessment, founding_date="2010-03-15")
+        self.assertIsNotNone(born)
+
+    def test_override_takes_precedence(self):
+        assessment = _make_assessment()
+        assessment["founding_date"] = "2000-01-01"
+        b1 = org_born(assessment, founding_date="2010-03-15")
+        b2 = org_born({"founding_date": "2000-01-01", "dimensions": []})
+        self.assertIsInstance(b1, int)
+        self.assertIsInstance(b2, int)
+
+    def test_no_date_returns_none(self):
+        self.assertIsNone(org_born(_make_assessment()))
+
+    def test_bad_date_returns_none(self):
+        assessment = _make_assessment()
+        assessment["founding_date"] = "not-a-date"
+        self.assertIsNone(org_born(assessment))
+
+    def test_born_in_valid_set(self):
+        assessment = _make_assessment()
+        assessment["founding_date"] = "2010-03-15"
+        valid = set(range(1, 10)) | {11, 22, 33}
+        self.assertIn(org_born(assessment), valid)
+
+
+class TestBridgeOrg(unittest.TestCase):
+    def setUp(self):
+        self.assessment = _make_assessment({3: 7.5})
+        self.assessment["founding_date"] = "2010-03-15"
+
+    def test_all_keys_present(self):
+        reading = bridge_org(self.assessment)
+        for key in ("organization", "founding_date", "born", "born_name",
+                    "governing_position", "governing_dimension",
+                    "aggregate_score", "aggregate_level"):
+            self.assertIn(key, reading)
+
+    def test_org_name_matches(self):
+        self.assertEqual(bridge_org(self.assessment)["organization"], "Test Org")
+
+    def test_born_present_with_founding_date(self):
+        reading = bridge_org(self.assessment)
+        self.assertIsNotNone(reading["born"])
+        self.assertIsNotNone(reading["governing_dimension"])
+
+    def test_no_date_yields_none_born(self):
+        reading = bridge_org(_make_assessment())
+        self.assertIsNone(reading["born"])
+        self.assertIsNone(reading["governing_dimension"])
+
+    def test_override_founding_date(self):
+        reading = bridge_org(_make_assessment(), founding_date="2010-03-15")
+        self.assertIsNotNone(reading["born"])
+
+    def test_governing_position_consistent_with_born(self):
+        reading = bridge_org(self.assessment)
         if reading["born"] is not None:
             self.assertEqual(reading["governing_position"], map_born_to_position(reading["born"]))
 
