@@ -93,7 +93,30 @@ DBAR = "═" * WIDTH
 
 def load_assessment(path):
     with open(path) as f:
-        return json.load(f)
+        data = json.load(f)
+    if data.get("type") == "ecosystem":
+        orgs = data.get("organizations", [])
+        label = "Ecosystem (" + ", ".join(orgs) + ")" if orgs else "Ecosystem"
+        dims = [
+            {
+                "position": d["position"],
+                "name": d["name"],
+                "scores": [d["average"]] * 3,
+                "average": d["average"],
+                "level": d.get("level", ""),
+            }
+            for d in data.get("dimensions", [])
+        ]
+        return {
+            "organization": label,
+            "founding_date": data.get("founding_date", ""),
+            "aggregate_score": data.get("ecosystem_aggregate"),
+            "aggregate_level": data.get("ecosystem_level"),
+            "timestamp": data.get("timestamp", ""),
+            "dimensions": dims,
+            "_ecosystem": True,
+        }
+    return data
 
 
 def load_latest_assessment(org_name="Donation Station HP", assessments_dir="assessments"):
