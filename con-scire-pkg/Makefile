@@ -7,18 +7,18 @@ origin:
 	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --origin $(if $(FOUNDED),--founded $(FOUNDED),)
 
 station:
-	python bridge.py --api $(API) --station
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --station
 
 donors:
-	python bridge.py --api $(API) --donors
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --donors
 
 stage:
-	python bridge.py --api $(API) --stage $(STAGE)
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --stage $(STAGE)
 
 item:
-	python bridge.py --api $(API) --item $(ID)
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --item $(ID)
 
 health:
-	python bridge.py --api $(API)
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API))
 
 .PHONY: test origin station donors stage item health
