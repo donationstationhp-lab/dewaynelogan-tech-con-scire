@@ -12,6 +12,8 @@ from bridge import (
     item_born,
     bridge_item,
     stage_health,
+    donor_born,
+    bridge_donor,
     BORN_TO_POSITION,
     STAGE_TO_POSITIONS,
 )
@@ -207,6 +209,65 @@ class TestStageHealth(unittest.TestCase):
         dims = stage_health("distributed", self.assessment)
         eq = next((d for d in dims if d["position"] == 6), None)
         self.assertAlmostEqual(eq["average"], 8.33)
+
+
+def _make_donor(donor_id="D-0001", name="Test Donor", donation_date="2026-08-17"):
+    return {"id": donor_id, "name": name, "donation_date": donation_date}
+
+
+class TestDonorBorn(unittest.TestCase):
+    def test_valid_date_yields_integer(self):
+        born = donor_born(_make_donor(donation_date="2026-08-17"))
+        self.assertIsNotNone(born)
+        self.assertIsInstance(born, int)
+
+    def test_born_in_valid_set(self):
+        valid = set(range(1, 10)) | {11, 22, 33}
+        self.assertIn(donor_born(_make_donor(donation_date="2026-01-15")), valid)
+
+    def test_missing_date_returns_none(self):
+        self.assertIsNone(donor_born({"id": "D-0001", "name": "No Date"}))
+
+    def test_bad_date_returns_none(self):
+        self.assertIsNone(donor_born(_make_donor(donation_date="not-a-date")))
+
+    def test_iso_with_time_component(self):
+        born = donor_born(_make_donor(donation_date="2026-08-17T14:30:00Z"))
+        self.assertIsNotNone(born)
+
+    def test_camel_case_field(self):
+        donor = {"id": "D-0001", "donationDate": "2026-08-17"}
+        self.assertIsNotNone(donor_born(donor))
+
+
+class TestBridgeDonor(unittest.TestCase):
+    def setUp(self):
+        self.assessment = _make_assessment()
+
+    def test_all_keys_present(self):
+        reading = bridge_donor(_make_donor(), self.assessment)
+        for key in ("donor_id", "name", "donation_date", "born", "born_name",
+                    "governing_position", "governing_dimension"):
+            self.assertIn(key, reading)
+
+    def test_donor_id_matches(self):
+        reading = bridge_donor(_make_donor(donor_id="D-9999"), self.assessment)
+        self.assertEqual(reading["donor_id"], "D-9999")
+
+    def test_born_present_with_date(self):
+        reading = bridge_donor(_make_donor(donation_date="2026-08-17"), self.assessment)
+        self.assertIsNotNone(reading["born"])
+        self.assertIsNotNone(reading["governing_dimension"])
+
+    def test_no_date_yields_none_born(self):
+        reading = bridge_donor({"id": "D-0001", "name": "No Date"}, self.assessment)
+        self.assertIsNone(reading["born"])
+        self.assertIsNone(reading["governing_dimension"])
+
+    def test_governing_position_consistent_with_born(self):
+        reading = bridge_donor(_make_donor(donation_date="2026-08-17"), self.assessment)
+        if reading["born"] is not None:
+            self.assertEqual(reading["governing_position"], map_born_to_position(reading["born"]))
 
 
 class TestMappingCoverage(unittest.TestCase):

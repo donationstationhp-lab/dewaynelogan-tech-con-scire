@@ -130,6 +130,20 @@ def load_items_from_file(path):
     return list(data.get("items", {}).values())
 
 
+def load_donors_from_api(base_url):
+    """Load donors from a running Donation Station HP API."""
+    url = base_url.rstrip("/") + "/donors"
+    with urllib.request.urlopen(url) as resp:
+        return json.loads(resp.read())
+
+
+def load_donors_from_file(path):
+    """Load donors from a local donation_station data JSON file."""
+    with open(path) as f:
+        data = json.load(f)
+    return list(data.get("donors", {}).values())
+
+
 # ── Core bridge functions ─────────────────────────────────────────────────────
 
 
@@ -195,6 +209,37 @@ def stage_health(stage, assessment):
     ]
 
 
+def donor_born(donor):
+    """Derive the Power Connection born number from a donor's donation date."""
+    date_str = donor.get("donation_date") or donor.get("donationDate", "")
+    if not date_str:
+        return None
+    try:
+        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        return pc_born(dt.month, dt.day, dt.year)
+    except (ValueError, AttributeError):
+        return None
+
+
+def bridge_donor(donor, assessment):
+    """
+    Produce a bridge reading for one donor:
+    donation date → born number → AXIOM position → org health at that dimension.
+    """
+    b = donor_born(donor)
+    gov_pos = map_born_to_position(b)
+    gov_dim = get_dim(gov_pos, assessment) if gov_pos is not None else None
+    return {
+        "donor_id": donor.get("id") or donor.get("donorId", "?"),
+        "name": donor.get("name", ""),
+        "donation_date": donor.get("donation_date") or donor.get("donationDate", ""),
+        "born": b,
+        "born_name": born_label(b),
+        "governing_position": gov_pos,
+        "governing_dimension": gov_dim,
+    }
+
+
 # ── Output ────────────────────────────────────────────────────────────────────
 
 
@@ -225,6 +270,23 @@ def print_item_reading(reading, org_name):
         for d in reading["stage_dimensions"]:
             sig = _signal(d["average"])
             print(f"    P{d['position']}  {d['name']:<22}  {d['average']:.2f}  [{d['level']}]  {sig}")
+    print()
+
+
+def print_donor_reading(reading, org_name):
+    print(f"\n{BAR}")
+    print(f"  {reading['donor_id']}  —  {reading['name']}")
+    print(f"  Donation Date: {reading['donation_date']}")
+    print(BAR)
+    if reading["born"] is not None:
+        print(f"\n  Power Reading  →  Born {reading['born']}  [{reading['born_name']}]")
+        gd = reading["governing_dimension"]
+        if gd:
+            sig = _signal(gd["average"])
+            print(f"  Governing  →  Position {gd['position']}: {gd['name']}")
+            print(f"  {org_name}: {gd['average']:.2f}  [{gd['level']}]  {sig}")
+    else:
+        print(f"\n  Power Reading  →  unavailable (no donation date)")
     print()
 
 
@@ -285,6 +347,7 @@ def main():
     )
     parser.add_argument("--org", metavar="FILE", help="AXIOM assessment JSON")
     parser.add_argument("--station", action="store_true", help="Bridge all items")
+    parser.add_argument("--donors", action="store_true", help="Bridge all donors")
     parser.add_argument("--item", metavar="ID", help="Bridge one item by ID")
     parser.add_argument(
         "--stage", metavar="STAGE",
@@ -305,14 +368,19 @@ def main():
     org_name = assessment.get("organization", "Unknown")
 
     items = []
+    donors = []
     if args.api:
         try:
             items = load_items_from_api(args.api)
         except Exception as e:
-            print(f"API error: {e}")
-            sys.exit(1)
+            print(f"API error (items): {e}")
+        try:
+            donors = load_donors_from_api(args.api)
+        except Exception:
+            pass
     elif args.data:
         items = load_items_from_file(args.data)
+        donors = load_donors_from_file(args.data)
     else:
         default_data = os.path.join(
             os.path.dirname(os.path.abspath(__file__)),
@@ -320,8 +388,18 @@ def main():
         )
         if os.path.exists(default_data):
             items = load_items_from_file(default_data)
+            donors = load_donors_from_file(default_data)
 
-    if args.station:
+    if args.donors:
+        print(f"\n{DBAR}")
+        print(f"  CON-SCIRE  DONORS  —  {org_name}")
+        print(DBAR)
+        if not donors:
+            print(f"\n  No donors found.\n")
+        else:
+            for donor in donors:
+                print_donor_reading(bridge_donor(donor, assessment), org_name)
+    elif args.station:
         print_station_bridge(items, assessment, org_name)
     elif args.item:
         item = next(
