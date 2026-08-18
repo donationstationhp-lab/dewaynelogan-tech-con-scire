@@ -4,7 +4,7 @@ test:
 	python -m pytest tests/ -v
 
 origin:
-	python bridge.py --api $(API) --origin $(if $(FOUNDED),--founded $(FOUNDED),)
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --origin $(if $(FOUNDED),--founded $(FOUNDED),)
 
 station:
 	python bridge.py --api $(API) --station
