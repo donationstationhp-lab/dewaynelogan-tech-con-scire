@@ -1,0 +1,124 @@
+{
+  "organization": "Donation Station HP",
+  "timestamp": "2026-08-19T13:08:27.503265",
+  "dimensions": [
+    {
+      "position": 0,
+      "name": "CIPHER/COMPLETION",
+      "scores": [
+        7,
+        9.1,
+        8
+      ],
+      "average": 8.03,
+      "level": "Mature"
+    },
+    {
+      "position": 1,
+      "name": "KNOWLEDGE",
+      "scores": [
+        8.0,
+        9.0,
+        8.0
+      ],
+      "average": 8.33,
+      "level": "Mature"
+    },
+    {
+      "position": 2,
+      "name": "WISDOM",
+      "scores": [
+        6.0,
+        6.0,
+        7.0
+      ],
+      "average": 6.33,
+      "level": "Established"
+    },
+    {
+      "position": 3,
+      "name": "UNDERSTANDING",
+      "scores": [
+        9.0,
+        8.0,
+        9.0
+      ],
+      "average": 8.67,
+      "level": "Mature"
+    },
+    {
+      "position": 4,
+      "name": "CULTURED FREEDOM",
+      "scores": [
+        9,
+        9,
+        9
+      ],
+      "average": 9.0,
+      "level": "Mature"
+    },
+    {
+      "position": 5,
+      "name": "POWER REFINEMENT",
+      "scores": [
+        7.0,
+        7.0,
+        7.0
+      ],
+      "average": 7.0,
+      "level": "Established"
+    },
+    {
+      "position": 6,
+      "name": "EQUALITY",
+      "scores": [
+        7.0,
+        7.0,
+        8.0
+      ],
+      "average": 7.33,
+      "level": "Established"
+    },
+    {
+      "position": 7,
+      "name": "CONSCIOUSNESS",
+      "scores": [
+        8.0,
+        8.0,
+        9.0
+      ],
+      "average": 8.33,
+      "level": "Mature"
+    },
+    {
+      "position": 8,
+      "name": "BUILD/DESTROY",
+      "scores": [
+        8,
+        9,
+        8
+      ],
+      "average": 8.33,
+      "level": "Mature"
+    },
+    {
+      "position": 9,
+      "name": "BORN",
+      "scores": [
+        7.0,
+        7.0,
+        7.0
+      ],
+      "average": 7.0,
+      "level": "Established"
+    }
+  ],
+  "aggregate_score": 7.83,
+  "aggregate_level": "Established",
+  "top_gap": {
+    "position": 2,
+    "name": "WISDOM",
+    "score": 6.33,
+    "level": "Established"
+  }
+}
