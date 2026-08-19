@@ -1,0 +1,29 @@
+name: Stage Health Digest
+on:
+  schedule:
+    - cron: "0 9 * * 1"   # Monday 09:00 UTC
+  workflow_dispatch:       # manual trigger
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Stage health summary
+        run: |
+          shopt -s nullglob
+          files=(assessments/*.json)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No assessment file found in assessments/."
+            echo "Add an AXIOM assessment JSON to enable the weekly digest."
+            exit 0
+          fi
+          latest=$(ls -t assessments/*.json | head -1)
+          echo "## Con-Scire Stage Health — $(date -u +%Y-%m-%d)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          python bridge.py --org "$latest" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
