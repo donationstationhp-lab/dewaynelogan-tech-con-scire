@@ -66,7 +66,7 @@ Usage:
   python donation_station.py distribute DS-0001 "Recipient" --substitution "Swapped apples for pears"
 
   # Remote mode (Replit as primary backend)
-  python donation_station.py remote --url https://donation-lifecycle-tracker.replit.app --key YOUR_API_KEY
+  python donation_station.py remote --url https://scc.donationstations.com --key YOUR_API_KEY
   python donation_station.py remote --show
   python donation_station.py remote --clear
   python donation_station.py sync          # push all local items to Replit
