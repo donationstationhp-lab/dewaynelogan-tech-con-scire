@@ -7,7 +7,7 @@ available to any MCP client — Claude Desktop, Claude Code, etc. — with
 its existing name/description/input_schema unchanged. Each call is
 routed through tools.dispatch(), so the same error handling used by the
 Anthropic tool-use wrapper applies here too: dispatch()'s "is_error"
-flag maps directly onto MCP's CallToolResult.isError.
+flag maps directly onto MCP's CallToolResult.is_error.
 
 Usage:
   python mcp_server.py
@@ -31,33 +31,53 @@ import json
 import mcp.server.stdio
 import mcp.types as types
 from mcp.server import Server
+from mcp.types import (
+    CallToolRequest,
+    CallToolRequestParams,
+    CallToolResult,
+    ListToolsRequest,
+    ListToolsResult,
+    PaginatedRequestParams,
+    TextContent,
+    Tool,
+)
 
 import tools
 
 server = Server("repo-tools")
 
 
-@server.list_tools()
-async def list_tools() -> list[types.Tool]:
+async def list_tools() -> list[Tool]:
     return [
-        types.Tool(
+        Tool(
             name=spec["name"],
             description=spec["description"],
-            inputSchema=spec["input_schema"],
+            input_schema=spec["input_schema"],
         )
         for spec in tools.TOOLS
     ]
 
 
-@server.call_tool()
-async def call_tool(name: str, arguments: dict) -> types.CallToolResult:
+async def call_tool(name: str, arguments: dict) -> CallToolResult:
     outcome = tools.dispatch(name, arguments or {})
     content = outcome["content"]
     text = content if isinstance(content, str) else json.dumps(content, indent=2)
-    return types.CallToolResult(
-        content=[types.TextContent(type="text", text=text)],
-        isError=outcome["is_error"],
+    return CallToolResult(
+        content=[TextContent(type="text", text=text)],
+        is_error=outcome["is_error"],
     )
+
+
+async def _handle_list_tools(ctx, params: PaginatedRequestParams) -> ListToolsResult:
+    return ListToolsResult(tools=await list_tools())
+
+
+async def _handle_call_tool(ctx, params: CallToolRequestParams) -> CallToolResult:
+    return await call_tool(params.name, dict(params.arguments or {}))
+
+
+server.add_request_handler("tools/list", PaginatedRequestParams, _handle_list_tools)
+server.add_request_handler("tools/call", CallToolRequestParams, _handle_call_tool)
 
 
 async def _run():
