@@ -10,7 +10,7 @@
 
 Each iteration of `/loop access-dkl-loop` must:
 
-1. Run the test suite (`pytest tests/`) and record pass/fail count
+1. Run the test suite (`python -m pytest tests/`) and record pass/fail count
 2. Check `git status` — note any uncommitted changes
 3. Check open issues and PRs via GitHub MCP
 4. Append a new dated entry to this file (`LOOP_STATUS.md`) with the results
