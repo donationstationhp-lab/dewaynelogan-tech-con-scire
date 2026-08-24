@@ -6,6 +6,20 @@
 
 ---
 
+## Loop Protocol
+
+Each iteration of `/loop access-dkl-loop` must:
+
+1. Run the test suite (`pytest tests/`) and record pass/fail count
+2. Check `git status` — note any uncommitted changes
+3. Check open issues and PRs via GitHub MCP
+4. Append a new dated entry to this file (`LOOP_STATUS.md`) with the results
+5. Commit and push the updated file
+6. Update the AXIOM Signal Report in Notion (`3c103691-bd5e-8121-bf2a-d94af736c67b`) if status changed
+7. Re-arm `ScheduleWakeup` with `delaySeconds: 1800`, `noop: true/false` based on whether anything changed
+
+---
+
 ## 2026-08-24
 
 | Item | Status |
