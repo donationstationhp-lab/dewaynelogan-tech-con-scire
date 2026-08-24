@@ -300,6 +300,14 @@ Moon:      🌔 Waxing Gibbous  95.8%  ~2 days to full
 
 ---
 
+## Project tools
+
+| Tool | File | Purpose |
+|------|------|---------|
+| Conversation summary prompt | `CONVERSATION_SUMMARY_PROMPT.md` | Paste at the top of any past conversation transcript to audit what was documented vs. what still needs to be written down. Works on any conversation, not just SM sessions. |
+
+---
+
 ## Active branch
 
 `claude/artifact-link-reference-9Mt4v` on `donationstationhp-lab/dewaynelogan-tech-con-scire`

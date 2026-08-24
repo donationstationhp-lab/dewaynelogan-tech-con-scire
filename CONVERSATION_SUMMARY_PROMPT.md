@@ -3,6 +3,18 @@
 
 ---
 
+## How to use
+
+1. Copy everything in this file.
+2. Open a new Claude session.
+3. Paste this prompt.
+4. Paste the full conversation transcript immediately below the last line of this file.
+5. Send. Claude will return the four-section audit below.
+
+---
+
+## Prompt
+
 You are auditing the conversation transcript that follows this prompt. Your job is to extract two things:
 
 1. **What has been documented** — decisions, rules, implementations, or data that were explicitly written into a file, committed to code, saved somewhere, or stated as final and sealed during this conversation.
