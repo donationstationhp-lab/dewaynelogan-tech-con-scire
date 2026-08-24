@@ -20,6 +20,19 @@ Each iteration of `/loop access-dkl-loop` must:
 
 ---
 
+## 2026-08-24 (protocol test run)
+
+| Item | Status |
+|------|--------|
+| Branch | up to date with remote |
+| Working tree | clean |
+| Test suite | **23 / 23 passed** (`etymonline.py`) |
+| Open issues | 0 |
+| Open PRs | 0 |
+| Loop outcome | All green — protocol test successful; file updated, committed, pushed |
+
+---
+
 ## 2026-08-24
 
 | Item | Status |
