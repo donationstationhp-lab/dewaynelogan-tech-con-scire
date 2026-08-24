@@ -20,6 +20,19 @@ Each iteration of `/loop access-dkl-loop` must:
 
 ---
 
+## 2026-08-24 (manual run #2)
+
+| Item | Status |
+|------|--------|
+| Branch | `con-scire-standalone` — up to date with remote |
+| Working tree | clean |
+| Test suite | **453 / 453 passed** |
+| Open issues | 0 |
+| Open PRs | 0 |
+| Loop outcome | All green |
+
+---
+
 ## 2026-08-24 (first run on con-scire-standalone)
 
 | Item | Status |
