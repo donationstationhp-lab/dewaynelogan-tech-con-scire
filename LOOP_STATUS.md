@@ -20,6 +20,19 @@ Each iteration of `/loop access-dkl-loop` must:
 
 ---
 
+## 2026-08-24 (verify python -m pytest fix)
+
+| Item | Status |
+|------|--------|
+| Branch | up to date with remote |
+| Working tree | clean |
+| Test suite | **23 / 23 passed** (`python -m pytest` — fix verified) |
+| Open issues | 0 |
+| Open PRs | 0 |
+| Loop outcome | All green |
+
+---
+
 ## 2026-08-24 (protocol test run)
 
 | Item | Status |
