@@ -1,6 +1,6 @@
 # DKL Loop Status
 
-**Branch:** `claude/access-dkl-loop-Alg7O`
+**Branch:** `con-scire-standalone` (merged from `claude/access-dkl-loop-Alg7O` on 2026-08-24)
 **Repo:** `dewaynelogan-tech-con-scire`
 **Loop mode:** Dynamic / self-paced (`/loop access-dkl-loop`), 30 min heartbeat
 
@@ -17,6 +17,16 @@ Each iteration of `/loop access-dkl-loop` must:
 5. Commit and push the updated file
 6. Update the AXIOM Signal Report in Notion (`3c103691-bd5e-8121-bf2a-d94af736c67b`) if status changed
 7. Re-arm `ScheduleWakeup` with `delaySeconds: 1800`, `noop: true/false` based on whether anything changed
+
+---
+
+## 2026-08-24 (branch migrated to con-scire-standalone)
+
+| Item | Status |
+|------|--------|
+| Branch | `con-scire-standalone` — PR #10 merged, loop now tracking this branch |
+| Working tree | clean |
+| Loop outcome | Branch updated — loop re-armed against `con-scire-standalone` |
 
 ---
 
