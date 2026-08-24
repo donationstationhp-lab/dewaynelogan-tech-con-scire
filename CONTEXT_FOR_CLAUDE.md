@@ -300,6 +300,15 @@ Moon:      🌔 Waxing Gibbous  95.8%  ~2 days to full
 
 ---
 
+## Donation Station
+
+Official domain: **`donationsstations.com`** (plural — sealed 2026-08-24).
+Do not recommend `donationstation.org` or any singular variant — that was an earlier session suggestion that was not adopted.
+
+Live endpoints in the codebase use `scc.donationstations.com`. All future copy, print materials, and code should use the plural form.
+
+---
+
 ## Project tools
 
 | Tool | File | Purpose |
