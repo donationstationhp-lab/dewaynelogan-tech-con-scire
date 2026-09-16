@@ -76,13 +76,33 @@ STAGE_TO_POSITIONS = {
     "intake":      [1, 9],
     "qc":          [2, 8],
     "storage":     [4, 3],
+    "matched":     [6, 5],
+    "scheduled":   [5, 3],
     "distributed": [6, 7],
 }
 
 STAGE_LABELS = {
-    "intake": "INTAKE", "qc": "QUALITY CONTROL",
-    "storage": "STORAGE", "distributed": "DISTRIBUTED",
+    "intake":      "INTAKE",
+    "qc":          "QUALITY CONTROL",
+    "storage":     "STORAGE",
+    "matched":     "MATCHED",
+    "scheduled":   "SCHEDULED",
+    "distributed": "DISTRIBUTED",
 }
+
+# Service Loop — 9 operational steps, each governed by one AXIOM position.
+# P9 Born governs the item beneath the loop (the item's intake date power connection).
+SERVICE_LOOP = [
+    ("Receive",     1),  # P1 Knowledge
+    ("Recognize",   7),  # P7 Consciousness
+    ("Classify",    2),  # P2 Wisdom
+    ("Match",       6),  # P6 Equality
+    ("Schedule",    5),  # P5 Power Refinement
+    ("Serve",       3),  # P3 Understanding
+    ("Verify",      8),  # P8 Build/Destroy
+    ("Acknowledge", 4),  # P4 Cultured Freedom
+    ("Learn",       0),  # P0 Cipher/Completion
+]
 
 TIER_LABELS = {
     "T": "Tactical",
@@ -306,6 +326,15 @@ def bridge_donor(donor, assessment):
     }
 
 
+def bridge_service_loop(assessment):
+    """Score each Service Loop step against the current assessment."""
+    steps = []
+    for step, pos in SERVICE_LOOP:
+        dim = get_dim(pos, assessment)
+        steps.append({"step": step, "position": pos, "dimension": dim})
+    return steps
+
+
 # ── Output ────────────────────────────────────────────────────────────────────
 
 
@@ -382,6 +411,25 @@ def print_donor_reading(reading, org_name):
     print()
 
 
+def print_service_loop(assessment, org_name):
+    steps = bridge_service_loop(assessment)
+    print(f"\n{DBAR}")
+    print(f"  SERVICE LOOP  —  {org_name}")
+    print(f"  Aggregate: {assessment.get('aggregate_score')}  [{assessment.get('aggregate_level')}]")
+    print(DBAR)
+    arrows = " → ".join(s["step"] for s in steps)
+    print(f"\n  {arrows}\n")
+    print(BAR)
+    for s in steps:
+        d = s["dimension"]
+        if d:
+            sig = _signal(d["average"])
+            print(f"  {s['step']:<12}  P{s['position']}  {d['name']:<22}  {d['average']:.2f}  [{d['level']}]  {sig}")
+        else:
+            print(f"  {s['step']:<12}  P{s['position']}  —")
+    print()
+
+
 def print_stage_summary(assessment, org_name):
     print(f"\n{BAR}")
     print(f"  STAGE HEALTH  —  {org_name}")
@@ -440,6 +488,7 @@ def main():
     parser.add_argument("--org", metavar="FILE", help="AXIOM assessment JSON")
     parser.add_argument("--station", action="store_true", help="Bridge all items")
     parser.add_argument("--donors", action="store_true", help="Bridge all donors")
+    parser.add_argument("--loop", action="store_true", help="Score the Service Loop against the assessment")
     parser.add_argument("--origin", action="store_true", help="Org self-referential reading")
     parser.add_argument("--founded", metavar="DATE", help="Org founding date (YYYY-MM-DD)")
     parser.add_argument("--item", metavar="ID", help="Bridge one item by ID")
@@ -484,7 +533,9 @@ def main():
             items = load_items_from_file(default_data)
             donors = load_donors_from_file(default_data)
 
-    if args.origin:
+    if args.loop:
+        print_service_loop(assessment, org_name)
+    elif args.origin:
         print_org_reading(bridge_org(assessment, args.founded))
     elif args.donors:
         print(f"\n{DBAR}")

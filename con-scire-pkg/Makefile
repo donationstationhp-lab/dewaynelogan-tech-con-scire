@@ -24,4 +24,7 @@ item:
 health:
 	python bridge.py $(if $(ORG),--org $(ORG),--api $(API))
 
-.PHONY: test origin intake station donors stage item health
+loop:
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --loop
+
+.PHONY: test origin intake station donors stage item health loop
