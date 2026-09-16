@@ -84,6 +84,13 @@ STAGE_LABELS = {
     "storage": "STORAGE", "distributed": "DISTRIBUTED",
 }
 
+TIER_LABELS = {
+    "T": "Tactical",
+    "I": "Immediate",
+    "E": "Essential",
+    "R": "Reserve",
+}
+
 WIDTH = 70
 BAR = "─" * WIDTH
 DBAR = "═" * WIDTH
@@ -212,9 +219,12 @@ def bridge_item(item, assessment):
         d for d in [get_dim(p, assessment) for p in STAGE_TO_POSITIONS.get(stage, [])]
         if d
     ]
+    tier = item.get("tier", "")
     return {
         "item_id": item.get("id") or item.get("itemId", "?"),
         "name": item.get("name", ""),
+        "tier": tier,
+        "tier_label": TIER_LABELS.get(tier, ""),
         "stage": stage,
         "born": b,
         "born_name": born_label(b),
@@ -308,9 +318,12 @@ def _signal(score):
 
 def print_item_reading(reading, org_name):
     label = STAGE_LABELS.get(reading["stage"], (reading["stage"] or "").upper())
+    tier = reading.get("tier", "")
+    tier_label = reading.get("tier_label", "")
+    tier_str = f"  Tier: {tier}·{tier_label}" if tier else ""
     print(f"\n{BAR}")
     print(f"  {reading['item_id']}  —  {reading['name']}")
-    print(f"  Stage: {label}")
+    print(f"  Stage: {label}{tier_str}")
     print(BAR)
     if reading["born"] is not None:
         print(f"\n  Power Reading  →  Born {reading['born']}  [{reading['born_name']}]")
