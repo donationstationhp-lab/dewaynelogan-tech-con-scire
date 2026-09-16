@@ -1,23 +1,24 @@
-API ?= http://localhost:5000
-_SRC  = $(if $(ORG),--org $(ORG),--api $(API))
+_ORG  = $(if $(ORG),--org $(ORG),)
+_API  = $(if $(API),--api $(API),)
 _DATA = $(if $(DATA),--data $(DATA),)
+_ARGS = $(_ORG) $(_API) $(_DATA)
 
 test:
 	python -m pytest tests/ -v
 
 station:
-	python bridge.py $(_SRC) $(_DATA) --station
+	python bridge.py $(_ARGS) --station
 
 stage:
-	python bridge.py $(_SRC) $(_DATA) --stage $(STAGE)
+	python bridge.py $(_ARGS) --stage $(STAGE)
 
 item:
-	python bridge.py $(_SRC) $(_DATA) --item $(ID)
+	python bridge.py $(_ARGS) --item $(ID)
 
 origin:
-	python bridge.py $(_SRC) $(_DATA) --stage intake
+	python bridge.py $(_ARGS) --stage intake
 
 health:
-	python bridge.py $(_SRC) $(_DATA)
+	python bridge.py $(_ARGS)
 
 .PHONY: test station stage item origin health
