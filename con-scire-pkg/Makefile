@@ -4,13 +4,13 @@ test:
 	python -m pytest tests/ -v
 
 station:
-	python bridge.py --api $(API) --station
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --station
 
 stage:
-	python bridge.py --api $(API) --stage $(STAGE)
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --stage $(STAGE)
 
 item:
-	python bridge.py --api $(API) --item $(ID)
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --item $(ID)
 
 health:
 	python bridge.py $(if $(ORG),--org $(ORG),--api $(API))
