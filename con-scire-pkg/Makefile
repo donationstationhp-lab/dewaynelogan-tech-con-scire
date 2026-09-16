@@ -13,6 +13,6 @@ item:
 	python bridge.py --api $(API) --item $(ID)
 
 health:
-	python bridge.py --api $(API)
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API))
 
 .PHONY: test station stage item health
