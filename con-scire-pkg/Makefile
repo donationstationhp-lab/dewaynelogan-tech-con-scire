@@ -12,6 +12,9 @@ station:
 donors:
 	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) $(if $(DATA),--data $(DATA),) --donors
 
+intake:
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --stage intake
+
 stage:
 	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --stage $(STAGE)
 
@@ -21,4 +24,4 @@ item:
 health:
 	python bridge.py $(if $(ORG),--org $(ORG),--api $(API))
 
-.PHONY: test origin station donors stage item health
+.PHONY: test origin intake station donors stage item health
