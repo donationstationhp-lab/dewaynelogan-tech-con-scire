@@ -167,10 +167,15 @@ def load_latest_assessment(org_name="Donation Station HP", assessments_dir="asse
 
 
 def load_items_from_api(base_url):
-    """Load items from a running Donation Station HP API."""
-    url = base_url.rstrip("/") + "/items"
+    """Load items from the W.O.W. OS API (/api/items)."""
+    url = base_url.rstrip("/") + "/api/items"
     with urllib.request.urlopen(url) as resp:
-        return json.loads(resp.read())
+        items = json.loads(resp.read())
+    for item in items:
+        # List endpoint omits history; synthesize intake entry from createdAt
+        if "history" not in item and "createdAt" in item:
+            item["history"] = [{"stage": "intake", "timestamp": item["createdAt"]}]
+    return items
 
 
 def load_items_from_file(path):
@@ -181,10 +186,15 @@ def load_items_from_file(path):
 
 
 def load_donors_from_api(base_url):
-    """Load donors from a running Donation Station HP API."""
-    url = base_url.rstrip("/") + "/donors"
+    """Load donors from the W.O.W. OS API (/api/donors)."""
+    url = base_url.rstrip("/") + "/api/donors"
     with urllib.request.urlopen(url) as resp:
-        return json.loads(resp.read())
+        donors = json.loads(resp.read())
+    for donor in donors:
+        # Map lastGiftAt → donation_date for Born calculation
+        if "donation_date" not in donor:
+            donor["donation_date"] = donor.get("lastGiftAt") or donor.get("createdAt", "")
+    return donors
 
 
 def load_donors_from_file(path):
@@ -241,7 +251,7 @@ def bridge_item(item, assessment):
     ]
     tier = item.get("tier", "")
     return {
-        "item_id": item.get("id") or item.get("itemId", "?"),
+        "item_id": item.get("itemId") or item.get("id", "?"),
         "name": item.get("name", ""),
         "tier": tier,
         "tier_label": TIER_LABELS.get(tier, ""),
