@@ -241,7 +241,15 @@ def bridge_item(item, assessment):
     Produce a bridge reading for one item:
     intake date → born number → AXIOM position → org health at that dimension.
     """
-    b = item_born(item)
+    # Prefer pre-computed reading stored by the live API at intake time
+    pcr = item.get("powerConnectionReading")
+    if pcr is not None:
+        try:
+            b = int(pcr)
+        except (ValueError, TypeError):
+            b = item_born(item)
+    else:
+        b = item_born(item)
     gov_pos = map_born_to_position(b)
     gov_dim = get_dim(gov_pos, assessment) if gov_pos is not None else None
     stage = item.get("stage", "")

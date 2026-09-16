@@ -185,6 +185,18 @@ class TestBridgeItem(unittest.TestCase):
         if reading["born"] is not None:
             self.assertEqual(reading["governing_position"], map_born_to_position(reading["born"]))
 
+    def test_power_connection_reading_field_takes_priority(self):
+        # Live API items carry a pre-computed powerConnectionReading; it should
+        # be used directly instead of re-deriving from history.
+        item = {**_make_item(ts="2026-08-17T12:00:00Z"), "powerConnectionReading": "5"}
+        reading = bridge_item(item, self.assessment)
+        self.assertEqual(reading["born"], 5)
+
+    def test_power_connection_reading_master_number(self):
+        item = {**_make_item(), "history": [], "powerConnectionReading": "11"}
+        reading = bridge_item(item, self.assessment)
+        self.assertEqual(reading["born"], 11)
+
 
 class TestStageHealth(unittest.TestCase):
     def setUp(self):
