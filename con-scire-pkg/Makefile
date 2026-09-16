@@ -14,7 +14,10 @@ stage:
 item:
 	python bridge.py $(_SRC) $(_DATA) --item $(ID)
 
+origin:
+	python bridge.py $(_SRC) $(_DATA) --stage intake
+
 health:
 	python bridge.py $(_SRC) $(_DATA)
 
-.PHONY: test station stage item health
+.PHONY: test station stage item origin health
