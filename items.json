@@ -1,0 +1,42 @@
+{
+  "items": {
+    "DS-0001": {
+      "id": "DS-0001",
+      "name": "Winter Coat — Men's L",
+      "stage": "distributed",
+      "history": [
+        {"stage": "intake",      "timestamp": "2026-08-08T09:00:00"},
+        {"stage": "qc",          "timestamp": "2026-08-09T10:00:00"},
+        {"stage": "storage",     "timestamp": "2026-08-10T11:00:00"},
+        {"stage": "distributed", "timestamp": "2026-08-11T12:00:00"}
+      ]
+    },
+    "DS-0002": {
+      "id": "DS-0002",
+      "name": "Children's Books (set of 8)",
+      "stage": "storage",
+      "history": [
+        {"stage": "intake",  "timestamp": "2026-09-12T09:00:00"},
+        {"stage": "qc",      "timestamp": "2026-09-13T10:00:00"},
+        {"stage": "storage", "timestamp": "2026-09-14T11:00:00"}
+      ]
+    },
+    "DS-0003": {
+      "id": "DS-0003",
+      "name": "Blender — KitchenAid",
+      "stage": "qc",
+      "history": [
+        {"stage": "intake", "timestamp": "2026-06-04T09:00:00"},
+        {"stage": "qc",     "timestamp": "2026-06-05T10:00:00"}
+      ]
+    },
+    "DS-0004": {
+      "id": "DS-0004",
+      "name": "Desk Lamp",
+      "stage": "intake",
+      "history": [
+        {"stage": "intake", "timestamp": "2026-09-01T09:00:00"}
+      ]
+    }
+  }
+}

@@ -7,16 +7,16 @@ origin:
 	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --origin $(if $(FOUNDED),--founded $(FOUNDED),)
 
 station:
-	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --station
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) $(if $(DATA),--data $(DATA),) --station
 
 donors:
-	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --donors
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) $(if $(DATA),--data $(DATA),) --donors
 
 stage:
 	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --stage $(STAGE)
 
 item:
-	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) --item $(ID)
+	python bridge.py $(if $(ORG),--org $(ORG),--api $(API)) $(if $(DATA),--data $(DATA),) --item $(ID)
 
 health:
 	python bridge.py $(if $(ORG),--org $(ORG),--api $(API))
