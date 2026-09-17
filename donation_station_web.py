@@ -434,68 +434,87 @@ NEW = BASE.replace("{% block content %}{% endblock %}", """{% block content %}
   <form method="post">
     <div class="field">
       <label>Item Name *</label>
-      <input name="name" required autofocus>
+      <input name="name" required autofocus value="{{ values.get('name','') }}">
     </div>
     <div class="row2">
       <div class="field">
         <label>Category</label>
-        <select name="category">
-          {% for cat in categories %}<option value="{{ cat }}">{{ cat }}</option>{% endfor %}
+        <select name="category" id="category-select">
+          {% for cat in categories %}<option value="{{ cat }}" {% if values.get('category') == cat %}selected{% endif %}>{{ cat }}</option>{% endfor %}
         </select>
       </div>
       <div class="field">
         <label>Condition</label>
         <select name="condition">
-          <option>good</option><option>fair</option><option>poor</option>
+          {% for c in ['good', 'fair', 'poor'] %}<option {% if values.get('condition', 'good') == c %}selected{% endif %}>{{ c }}</option>{% endfor %}
         </select>
       </div>
     </div>
     <div class="row2">
       <div class="field">
         <label>Donor</label>
-        <input name="donor">
+        <input name="donor" value="{{ values.get('donor','') }}">
       </div>
       <div class="field">
         <label>Received By</label>
-        <input name="by">
+        <input name="by" value="{{ values.get('by','') }}">
       </div>
     </div>
     <div class="field">
       <label>Notes</label>
-      <input name="notes">
+      <input name="notes" value="{{ values.get('notes','') }}">
     </div>
     <div style="margin:20px 0 10px;padding-top:16px;border-top:1px solid var(--rule)">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--mid);margin-bottom:14px">
-        Perishable Details (optional)
+      <div id="perishable-label" style="font-size:10px;text-transform:uppercase;letter-spacing:.12em;color:var(--mid);margin-bottom:14px">
+        Perishable Details
       </div>
     </div>
     <div class="row2">
       <div class="field">
-        <label>Expiry Date</label>
-        <input name="expiry_date" type="date" placeholder="YYYY-MM-DD">
+        <label id="expiry-label">Expiry Date</label>
+        <input name="expiry_date" id="expiry-input" type="date" placeholder="YYYY-MM-DD" value="{{ values.get('expiry_date','') }}">
       </div>
       <div class="field">
         <label>Temperature Zone</label>
         <select name="temp_zone">
-          <option value="ambient">Ambient (dry / shelf-stable)</option>
-          <option value="refrigerated">Refrigerated</option>
-          <option value="frozen">Frozen</option>
+          <option value="ambient" {% if values.get('temp_zone', 'ambient') == 'ambient' %}selected{% endif %}>Ambient (dry / shelf-stable)</option>
+          <option value="refrigerated" {% if values.get('temp_zone') == 'refrigerated' %}selected{% endif %}>Refrigerated</option>
+          <option value="frozen" {% if values.get('temp_zone') == 'frozen' %}selected{% endif %}>Frozen</option>
         </select>
       </div>
     </div>
     <div class="row2">
       <div class="field">
         <label>Weight</label>
-        <input name="weight" placeholder="e.g. 5 lbs">
+        <input name="weight" placeholder="e.g. 5 lbs" value="{{ values.get('weight','') }}">
       </div>
       <div class="field">
         <label>Origin / Supplier</label>
-        <input name="origin" placeholder="e.g. Green Acres Farm">
+        <input name="origin" placeholder="e.g. Green Acres Farm" value="{{ values.get('origin','') }}">
       </div>
     </div>
     <button type="submit" class="btn">Log Intake</button>
   </form>
 </div>
+<script>
+(function() {
+  var perishable = {{ perishable_categories | tojson }};
+  var categorySelect = document.getElementById('category-select');
+  var expiryInput = document.getElementById('expiry-input');
+  var expiryLabel = document.getElementById('expiry-label');
+  var sectionLabel = document.getElementById('perishable-label');
+  function sync() {
+    var isPerishable = perishable.indexOf(categorySelect.value) !== -1;
+    expiryInput.required = isPerishable;
+    expiryLabel.textContent = isPerishable ? 'Expiry Date *' : 'Expiry Date';
+    sectionLabel.textContent = isPerishable
+      ? 'Perishable Details (required for ' + categorySelect.value + ')'
+      : 'Perishable Details (optional)';
+  }
+  categorySelect.addEventListener('change', sync);
+  sync();
+})();
+</script>
 {% endblock %}""")
 
 # ── Report ────────────────────────────────────────────────────────────────────
@@ -662,21 +681,31 @@ def item_detail(item_id):
 def new_item():
     if request.method == "POST":
         f = request.form
-        item = ds.intake(
-            name=f["name"].strip(),
-            category=f.get("category", "general"),
-            condition=f.get("condition", "good"),
-            donor=f.get("donor", "").strip(),
-            notes=f.get("notes", "").strip(),
-            by=f.get("by", "").strip(),
-            expiry_date=f.get("expiry_date", "").strip(),
-            temp_zone=f.get("temp_zone", "ambient"),
-            weight=f.get("weight", "").strip(),
-            origin=f.get("origin", "").strip(),
-        )
+        values = {k: f.get(k, "").strip() for k in
+                   ("name", "category", "condition", "donor", "notes", "by",
+                    "expiry_date", "temp_zone", "weight", "origin")}
+        try:
+            item = ds.intake(
+                name=values["name"],
+                category=values["category"] or "general",
+                condition=values["condition"] or "good",
+                donor=values["donor"],
+                notes=values["notes"],
+                by=values["by"],
+                expiry_date=values["expiry_date"],
+                temp_zone=values["temp_zone"] or "ambient",
+                weight=values["weight"],
+                origin=values["origin"],
+            )
+        except ValueError as exc:
+            return render_template_string(NEW,
+                categories=CATEGORIES, perishable_categories=list(ds.PERISHABLE_CATEGORIES),
+                active="new", flash=str(exc), values=values, q=None,
+                **_global_ctx())
         return redirect(url_for("item_detail", item_id=item["id"]))
     return render_template_string(NEW,
-        categories=CATEGORIES, active="new", flash=None, q=None,
+        categories=CATEGORIES, perishable_categories=list(ds.PERISHABLE_CATEGORIES),
+        active="new", flash=None, values={}, q=None,
         **_global_ctx())
 
 
