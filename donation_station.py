@@ -276,6 +276,7 @@ def _next_lot_id(db):
 
 def intake(name, category="general", condition="good", donor="", notes="", by="", lot="",
            expiry_date="", temp_zone="ambient", weight="", origin=""):
+    expiry_date = expiry_date or ""
     if category.lower().strip() in PERISHABLE_CATEGORIES and not expiry_date.strip():
         raise ValueError(
             f"expiry_date is required for category '{category}' "
