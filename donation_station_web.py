@@ -684,6 +684,11 @@ def new_item():
         values = {k: f.get(k, "").strip() for k in
                    ("name", "category", "condition", "donor", "notes", "by",
                     "expiry_date", "temp_zone", "weight", "origin")}
+        if not values["name"]:
+            return render_template_string(NEW,
+                categories=CATEGORIES, perishable_categories=list(ds.PERISHABLE_CATEGORIES),
+                active="new", flash="Item Name is required.", values=values, q=None,
+                **_global_ctx())
         try:
             item = ds.intake(
                 name=values["name"],

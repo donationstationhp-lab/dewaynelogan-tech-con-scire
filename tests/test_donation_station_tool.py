@@ -65,6 +65,16 @@ class TestDispatchIntake(unittest.TestCase):
         self.assertTrue(outcome["is_error"])
         self.assertIn("expiry_date", outcome["content"])
 
+    def test_food_with_null_expiry_is_reported_as_error_not_raised(self):
+        # A JSON null for a present-but-unset optional field (as opposed to
+        # an omitted key) must not crash the perishable-category check.
+        outcome = tool.dispatch(
+            "donation_station_intake",
+            {"name": "Apples", "category": "food", "expiry_date": None},
+        )
+        self.assertTrue(outcome["is_error"])
+        self.assertIn("expiry_date", outcome["content"])
+
 
 class TestDispatchProcessQc(unittest.TestCase):
     @patch("donation_station_tool.ds.process_qc")

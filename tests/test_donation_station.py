@@ -558,6 +558,10 @@ class TestPerishables(DSTestCase):
         with self.assertRaises(ValueError):
             ds.intake("Apples", category="food")
 
+    def test_food_with_none_expiry_raises_valueerror_not_attributeerror(self):
+        with self.assertRaises(ValueError):
+            ds.intake("Apples", category="food", expiry_date=None)
+
     def test_food_with_expiry_succeeds(self):
         item = ds.intake("Apples", category="food", expiry_date="2026-12-31")
         self.assertEqual(item["expiry_date"], "2026-12-31")
