@@ -168,7 +168,7 @@ class TestListAndReport(DSTestCase):
     def setUp(self):
         super().setUp()
         ds.intake("Item A", category="clothing")
-        item2 = ds.intake("Item B", category="food")
+        item2 = ds.intake("Item B", category="food", expiry_date="2026-12-31")
         ds.process_qc(item2["id"], passed=True)
 
     def test_list_all(self):
@@ -264,7 +264,7 @@ class TestTIER(DSTestCase):
     def test_print_report_shows_tier_breakdown(self):
         ds.intake("Walk", category="volunteer")
         ds.intake("Cash", category="financial")
-        ds.intake("Food", category="food")
+        ds.intake("Food", category="food", expiry_date="2026-12-31")
         r = ds.report()
         captured = StringIO()
         with patch("sys.stdout", captured):
@@ -552,6 +552,18 @@ class TestPerishables(DSTestCase):
 
     def test_no_expiry_means_no_field(self):
         item = ds.intake("Blanket")
+        self.assertNotIn("expiry_date", item)
+
+    def test_food_without_expiry_raises(self):
+        with self.assertRaises(ValueError):
+            ds.intake("Apples", category="food")
+
+    def test_food_with_expiry_succeeds(self):
+        item = ds.intake("Apples", category="food", expiry_date="2026-12-31")
+        self.assertEqual(item["expiry_date"], "2026-12-31")
+
+    def test_non_perishable_without_expiry_succeeds(self):
+        item = ds.intake("Jacket", category="clothing")
         self.assertNotIn("expiry_date", item)
 
     def test_frozen_zone(self):
