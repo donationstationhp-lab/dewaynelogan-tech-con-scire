@@ -55,10 +55,10 @@ def _compound_tag(seat: dict) -> str:
     return ""
 
 
-def print_reading(reading: dict, lex: Lexicon) -> None:
+def print_reading(reading: dict) -> None:
     dt      = datetime.date.fromisoformat(reading["date"])
     weekday = dt.strftime("%A")
-    title   = dt.strftime("%B %-d, %Y")
+    title   = f"{dt.strftime('%B')} {dt.day}, {dt.year}"
     time    = reading.get("time", "")
 
     att  = reading["attention"]
@@ -171,7 +171,7 @@ def main() -> None:
     if not 0 <= hour <= 23:
         sys.exit(f"--hour must be 0–23, got {hour}")
 
-    dt = datetime.datetime(d.year, d.month, d.day, hour, now.minute)
+    dt = datetime.datetime(d.year, d.month, d.day, hour)
 
     lexicon_path = args.lexicon or DEFAULT_LEXICON_PATH
     try:
@@ -185,7 +185,7 @@ def main() -> None:
         print(json.dumps(reading, indent=2))
         return
 
-    print_reading(reading, lex)
+    print_reading(reading)
 
     if args.notion:
         try:
