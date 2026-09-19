@@ -187,7 +187,7 @@ class TestComputeDaily(unittest.TestCase):
 
     # ── Address (Method A) ────────────────────────────────────────────────────
 
-    def test_address_has_four_components(self):
+    def test_address_has_required_keys(self):
         r = _r("2026-02-07")
         for k in ("Y", "M", "W", "D", "display"):
             self.assertIn(k, r["address"])
@@ -281,6 +281,21 @@ class TestComputeDaily(unittest.TestCase):
         r = _r("2026-05-29")
         self.assertEqual(r["purpose"]["raw"], 34)      # 5+29 unreduced
         self.assertEqual(r["purpose"]["number"], 7)    # reduce(34)=3+4=7
+
+    def test_october_attention_raw_and_position(self):
+        # month=10, raw=10, position=reduce(10)=1 (Knowledge) — raw != position
+        r = _r("2026-10-15")
+        self.assertEqual(r["attention"]["raw"], 10)
+        self.assertEqual(r["attention"]["number"], 1)
+        self.assertIn("October", r["attention"]["liturgy"])
+        self.assertIn("10", r["attention"]["liturgy"])
+
+    def test_october_purpose_compound(self):
+        # month=10, day=15, raw=25, reduce(25)=7
+        r = _r("2026-10-15")
+        self.assertEqual(r["purpose"]["raw"], 25)
+        self.assertEqual(r["purpose"]["number"], 7)
+        self.assertTrue(r["purpose"]["compound"])
 
 
 class TestMoonPhase(unittest.TestCase):
