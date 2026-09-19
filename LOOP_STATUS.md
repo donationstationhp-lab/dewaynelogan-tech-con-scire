@@ -32,3 +32,18 @@ Each iteration of `/loop access-dkl-loop` must:
 | Open issues | 0 |
 | Open PRs | 0 |
 | Loop outcome | All green — protocol re-established on trunk |
+
+---
+
+## 2026-09-19 (first automated iteration)
+
+**Triggered by:** `/loop access-dkl-loop` (dynamic / self-paced mode) — recurring loop now armed against trunk.
+
+| Item | Status |
+|------|--------|
+| Branch | `claude/etymonline-search-explore-qML2g` — up to date with remote |
+| Working tree | clean |
+| Test suite | **542 / 542 passed** |
+| Open issues | 0 |
+| Open PRs | 0 |
+| Loop outcome | All green, unchanged from seed entry — Notion skipped this run (status unchanged); `ScheduleWakeup` armed, 30 min heartbeat |
