@@ -10,7 +10,11 @@ import donation_station as ds
 TOOLS = [
     {
         "name": "donation_station_intake",
-        "description": "Log a newly donated item and start its lifecycle at the 'intake' stage.",
+        "description": (
+            "Log a newly donated item and start its lifecycle at the 'intake' stage. "
+            f"For perishable categories ({', '.join(ds.PERISHABLE_CATEGORIES)}), "
+            "`expiry_date` is required."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {
@@ -24,6 +28,21 @@ TOOLS = [
                 "donor": {"type": "string", "default": ""},
                 "notes": {"type": "string", "default": ""},
                 "by": {"type": "string", "description": "Operator logging the intake.", "default": ""},
+                "expiry_date": {
+                    "type": "string",
+                    "description": (
+                        "YYYY-MM-DD expiry date. Required for perishable categories "
+                        f"({', '.join(ds.PERISHABLE_CATEGORIES)})."
+                    ),
+                    "default": "",
+                },
+                "temp_zone": {
+                    "type": "string",
+                    "enum": list(ds.TEMP_ZONES),
+                    "default": "ambient",
+                },
+                "weight": {"type": "string", "description": "e.g. '5 lbs'.", "default": ""},
+                "origin": {"type": "string", "description": "Farm or supplier origin.", "default": ""},
             },
             "required": ["name"],
         },
@@ -130,6 +149,9 @@ def _donation_station_intake(tool_input):
     condition = tool_input.get("condition", "good")
     if condition not in ds.CONDITIONS:
         raise ToolError(f"`condition` must be one of {list(ds.CONDITIONS)}.")
+    temp_zone = tool_input.get("temp_zone", "ambient")
+    if temp_zone not in ds.TEMP_ZONES:
+        raise ToolError(f"`temp_zone` must be one of {list(ds.TEMP_ZONES)}.")
     return ds.intake(
         name,
         category=tool_input.get("category", "general"),
@@ -137,6 +159,10 @@ def _donation_station_intake(tool_input):
         donor=tool_input.get("donor", ""),
         notes=tool_input.get("notes", ""),
         by=tool_input.get("by", ""),
+        expiry_date=tool_input.get("expiry_date", ""),
+        temp_zone=temp_zone,
+        weight=tool_input.get("weight", ""),
+        origin=tool_input.get("origin", ""),
     )
 
 
