@@ -446,5 +446,39 @@ class TestDKLLoop(unittest.TestCase):
         self.assertEqual(parsed[0]["step"], "D")
 
 
+# ── Tests: _normalize_argv ────────────────────────────────────────────────────
+
+class TestNormalizeArgv(unittest.TestCase):
+    def test_flag_after_subcommand_moves_before(self):
+        result = ety._normalize_argv(["look", "run", "--offline"])
+        self.assertEqual(result, ["--offline", "look", "run"])
+
+    def test_flag_before_subcommand_unchanged(self):
+        result = ety._normalize_argv(["--offline", "look", "run"])
+        self.assertEqual(result, ["--offline", "look", "run"])
+
+    def test_multiple_flags_after_subcommand(self):
+        result = ety._normalize_argv(["explore", "run", "--depth", "2", "--offline", "--json"])
+        self.assertEqual(result, ["--offline", "--json", "explore", "run", "--depth", "2"])
+
+    def test_no_subcommand_unchanged(self):
+        result = ety._normalize_argv(["--help"])
+        self.assertEqual(result, ["--help"])
+
+    def test_no_cache_flag_normalised(self):
+        result = ety._normalize_argv(["look", "serendipity", "--no-cache"])
+        self.assertEqual(result, ["--no-cache", "look", "serendipity"])
+
+    def test_non_flag_args_after_subcommand_stay(self):
+        # --depth is subcommand-specific, not a global flag — must not be lifted
+        result = ety._normalize_argv(["explore", "run", "--depth", "2"])
+        self.assertEqual(result, ["explore", "run", "--depth", "2"])
+
+    def test_mixed_positions_deduplicated_correctly(self):
+        # --offline before AND after subcommand → both land before, rest stays
+        result = ety._normalize_argv(["--offline", "look", "run", "--offline"])
+        self.assertEqual(result, ["--offline", "--offline", "look", "run"])
+
+
 if __name__ == "__main__":
     unittest.main()
