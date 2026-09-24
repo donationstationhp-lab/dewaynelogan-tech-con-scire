@@ -84,29 +84,26 @@ def _build_blocks(reading: dict[str, Any]) -> list[dict]:
             return f"  [compound: {seat['raw']} → {seat['number']}]"
         return ""
 
-    return [
+    def _seat_blocks(seat: dict) -> list[dict]:
+        blocks = [
+            _para(seat["liturgy"], bold=True),
+            _bullet(
+                f"{seat['number']}  {seat['name']}"
+                + _compound(seat)
+            ),
+        ]
+        if seat.get("pie_root"):
+            blocks.append(_bullet(seat["pie_root"]))
+        return blocks
+
+    blocks: list[dict] = [
         # ── Fraction Calendar (primary) ───────────────────────────────────────
         _h2("Fraction Calendar  ·  Received · Gained · Given"),
         _bullet(srcs["fraction_calendar"]["name"]),
         _divider(),
-        _para(attention["liturgy"], bold=True),
-        _bullet(
-            f"{attention['number']}  {attention['name']}"
-            + _compound(attention)
-        ),
-        _bullet(attention.get("pie_root", "")),
-        _para(intention["liturgy"], bold=True),
-        _bullet(
-            f"{intention['number']}  {intention['name']}"
-            + _compound(intention)
-        ),
-        _bullet(intention.get("pie_root", "")),
-        _para(purpose["liturgy"], bold=True),
-        _bullet(
-            f"{purpose['number']}  {purpose['name']}"
-            + _compound(purpose)
-        ),
-        _bullet(purpose.get("pie_root", "")),
+        *_seat_blocks(attention),
+        *_seat_blocks(intention),
+        *_seat_blocks(purpose),
         _divider(),
         # ── Secondary lens ────────────────────────────────────────────────────
         _h2("Secondary Lens  ·  Method B + 12-hour clock"),
@@ -135,7 +132,7 @@ def _build_blocks(reading: dict[str, Any]) -> list[dict]:
             f"({moon['illumination_pct']}% illuminated, "
             f"{round(moon['days_to_full'], 1)} days to full)"
         ),
-        _bullet(moon.get("note", "")),
+        *([ _bullet(moon["note"]) ] if moon.get("note") else []),
         _divider(),
         # ── Year arc ──────────────────────────────────────────────────────────
         _h2(f"Year Arc  ·  {year}"),
@@ -165,6 +162,7 @@ def _build_blocks(reading: dict[str, Any]) -> list[dict]:
             "Upload images of today's whiteboard + proof of what got completed."
         ),
     ]
+    return blocks
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
@@ -197,7 +195,7 @@ def push(reading: dict[str, Any], token: str | None = None,
     )
 
     date  = datetime.date.fromisoformat(reading["date"])
-    title = date.strftime("%B %-d, %Y")  # e.g. "May 29, 2026"
+    title = f"{date.strftime('%B')} {date.day}, {date.year}"
 
     payload = {
         "parent": {"page_id": parent_id},

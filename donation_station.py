@@ -66,7 +66,7 @@ Usage:
   python donation_station.py distribute DS-0001 "Recipient" --substitution "Swapped apples for pears"
 
   # Remote mode (Replit as primary backend)
-  python donation_station.py remote --url https://scc.donationstations.com --key YOUR_API_KEY
+  python donation_station.py remote --url https://scc.donationsstations.com --key YOUR_API_KEY
   python donation_station.py remote --show
   python donation_station.py remote --clear
   python donation_station.py sync          # push all local items to Replit
@@ -164,6 +164,7 @@ def sync_to_remote():
 STAGES     = ("intake", "qc", "storage", "distributed")
 CONDITIONS = ("good", "fair", "poor")
 TEMP_ZONES = ("ambient", "refrigerated", "frozen")
+PERISHABLE_CATEGORIES = ("food",)
 WIDTH     = 70
 BAR       = "─" * WIDTH
 
@@ -275,6 +276,11 @@ def _next_lot_id(db):
 
 def intake(name, category="general", condition="good", donor="", notes="", by="", lot="",
            expiry_date="", temp_zone="ambient", weight="", origin=""):
+    expiry_date = expiry_date or ""
+    if category.lower().strip() in PERISHABLE_CATEGORIES and not expiry_date.strip():
+        raise ValueError(
+            f"expiry_date is required for category '{category}' "
+            f"(perishable categories: {', '.join(PERISHABLE_CATEGORIES)})")
     if _is_remote():
         return _remote("POST", "/api/items", dict(
             name=name, category=category, condition=condition, donor=donor,

@@ -546,6 +546,30 @@ def _notion_save_explore(explored):
 
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
+_GLOBAL_FLAGS = frozenset(["--offline", "--json", "--no-cache", "--notion"])
+_SUBCOMMANDS  = frozenset(["search", "look", "explore", "cache", "loop"])
+
+
+def _normalize_argv(argv):
+    """Move global flags that appear after the subcommand to before it.
+
+    Allows both `etymonline --offline look run` and
+    `etymonline look run --offline` to work identically.
+    """
+    sub_idx = next((i for i, a in enumerate(argv) if a in _SUBCOMMANDS), None)
+    if sub_idx is None:
+        return argv
+    pre  = list(argv[:sub_idx])
+    rest = list(argv[sub_idx:])
+    kept = []
+    for arg in rest:
+        if arg in _GLOBAL_FLAGS:
+            pre.append(arg)
+        else:
+            kept.append(arg)
+    return pre + kept
+
+
 def build_parser():
     p = argparse.ArgumentParser(
         prog="etymonline",
@@ -590,6 +614,7 @@ def build_parser():
 
 
 def main():
+    sys.argv[1:] = _normalize_argv(sys.argv[1:])
     parser = build_parser()
     args = parser.parse_args()
 

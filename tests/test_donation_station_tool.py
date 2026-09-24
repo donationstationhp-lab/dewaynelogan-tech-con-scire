@@ -31,6 +31,7 @@ class TestDispatchIntake(unittest.TestCase):
         self.assertEqual(outcome["content"]["id"], "DS-0001")
         mock_intake.assert_called_once_with(
             "Winter Jacket", category="general", condition="good", donor="", notes="", by="",
+            expiry_date="", temp_zone="ambient", weight="", origin="",
         )
 
     def test_missing_name_is_input_error(self):
@@ -40,6 +41,39 @@ class TestDispatchIntake(unittest.TestCase):
     def test_invalid_condition_is_input_error(self):
         outcome = tool.dispatch("donation_station_intake", {"name": "Jacket", "condition": "pristine"})
         self.assertTrue(outcome["is_error"])
+
+    def test_invalid_temp_zone_is_input_error(self):
+        outcome = tool.dispatch("donation_station_intake", {"name": "Fish", "temp_zone": "warm"})
+        self.assertTrue(outcome["is_error"])
+
+    @patch("donation_station_tool.ds.intake")
+    def test_perishable_fields_passed_through(self, mock_intake):
+        mock_intake.return_value = {"id": "DS-0002"}
+        tool.dispatch("donation_station_intake", {
+            "name": "Apples", "category": "food",
+            "expiry_date": "2026-12-31", "temp_zone": "refrigerated",
+            "weight": "5 lbs", "origin": "Green Acres Farm",
+        })
+        mock_intake.assert_called_once_with(
+            "Apples", category="food", condition="good", donor="", notes="", by="",
+            expiry_date="2026-12-31", temp_zone="refrigerated",
+            weight="5 lbs", origin="Green Acres Farm",
+        )
+
+    def test_food_without_expiry_is_reported_as_error_not_raised(self):
+        outcome = tool.dispatch("donation_station_intake", {"name": "Apples", "category": "food"})
+        self.assertTrue(outcome["is_error"])
+        self.assertIn("expiry_date", outcome["content"])
+
+    def test_food_with_null_expiry_is_reported_as_error_not_raised(self):
+        # A JSON null for a present-but-unset optional field (as opposed to
+        # an omitted key) must not crash the perishable-category check.
+        outcome = tool.dispatch(
+            "donation_station_intake",
+            {"name": "Apples", "category": "food", "expiry_date": None},
+        )
+        self.assertTrue(outcome["is_error"])
+        self.assertIn("expiry_date", outcome["content"])
 
 
 class TestDispatchProcessQc(unittest.TestCase):

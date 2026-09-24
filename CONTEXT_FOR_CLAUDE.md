@@ -348,3 +348,20 @@ Live endpoints in the codebase use `scc.donationstations.com`. All future copy, 
    - Method A/B/C relegated to secondary labeled lens
 
 All corrections are now sealed in the codebase. 112 tests encode the correct arithmetic.
+
+---
+
+## Donation Station
+
+Official domain: **`donationsstations.com`** (plural — sealed 2026-08-24).
+Do not recommend `donationstation.org` or any singular variant — that was an earlier session suggestion that was not adopted.
+
+Live endpoints in the codebase use `scc.donationsstations.com`. All future copy, print materials, and code should use the plural form.
+
+---
+
+## Project tools
+
+| Tool | File | Purpose |
+|------|------|---------|
+| Conversation summary prompt | `CONVERSATION_SUMMARY_PROMPT.md` | Paste at the top of any past conversation transcript to audit what was documented vs. what still needs to be written down. Works on any conversation, not just SM sessions. |
