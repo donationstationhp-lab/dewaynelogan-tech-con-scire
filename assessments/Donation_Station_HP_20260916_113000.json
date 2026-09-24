@@ -1,0 +1,84 @@
+{
+  "organization": "Donation Station HP",
+  "timestamp": "2026-09-16T11:30:00.000000",
+  "dimensions": [
+    {
+      "position": 0,
+      "name": "CIPHER/COMPLETION",
+      "scores": [8.0, 9.0, 8.5],
+      "average": 8.5,
+      "level": "Mature"
+    },
+    {
+      "position": 1,
+      "name": "KNOWLEDGE",
+      "scores": [8.0, 9.0, 8.5],
+      "average": 8.5,
+      "level": "Mature"
+    },
+    {
+      "position": 2,
+      "name": "WISDOM",
+      "scores": [8.0, 9.0, 8.0],
+      "average": 8.33,
+      "level": "Mature"
+    },
+    {
+      "position": 3,
+      "name": "UNDERSTANDING",
+      "scores": [9.0, 8.5, 9.0],
+      "average": 8.83,
+      "level": "Mature"
+    },
+    {
+      "position": 4,
+      "name": "CULTURED FREEDOM",
+      "scores": [9.0, 9.0, 9.0],
+      "average": 9.0,
+      "level": "Mature"
+    },
+    {
+      "position": 5,
+      "name": "POWER REFINEMENT",
+      "scores": [8.0, 8.5, 9.0],
+      "average": 8.5,
+      "level": "Mature"
+    },
+    {
+      "position": 6,
+      "name": "EQUALITY",
+      "scores": [9.0, 9.0, 8.0],
+      "average": 8.67,
+      "level": "Mature"
+    },
+    {
+      "position": 7,
+      "name": "CONSCIOUSNESS",
+      "scores": [8.0, 8.0, 9.0],
+      "average": 8.33,
+      "level": "Mature"
+    },
+    {
+      "position": 8,
+      "name": "BUILD/DESTROY",
+      "scores": [8.5, 9.0, 8.0],
+      "average": 8.5,
+      "level": "Mature"
+    },
+    {
+      "position": 9,
+      "name": "BORN",
+      "scores": [9.0, 9.0, 8.0],
+      "average": 8.67,
+      "level": "Mature"
+    }
+  ],
+  "aggregate_score": 8.58,
+  "aggregate_level": "Mature",
+  "top_gap": {
+    "position": 2,
+    "name": "WISDOM",
+    "score": 8.33,
+    "level": "Mature"
+  }
+}
