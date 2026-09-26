@@ -1,5 +1,3 @@
-API ?= http://localhost:5000
-
 _ORG  = $(if $(ORG),--org $(ORG),)
 _API  = $(if $(API),--api $(API),)
 _DATA = $(if $(DATA),--data $(DATA),)
