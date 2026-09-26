@@ -455,7 +455,7 @@ def print_stage_summary(assessment, org_name):
     print(f"  STAGE HEALTH  —  {org_name}")
     print(f"  Aggregate: {assessment.get('aggregate_score')}  [{assessment.get('aggregate_level')}]")
     print(BAR)
-    for stage in ("intake", "qc", "storage", "distributed"):
+    for stage in ("intake", "qc", "storage", "distributed", "closed"):
         dims = stage_health(stage, assessment)
         scores = [d["average"] for d in dims]
         if scores:
@@ -478,7 +478,7 @@ def print_station_bridge(items, assessment, org_name):
     print(BAR)
     print(f"  STAGE HEALTH")
     print(BAR)
-    for stage in ("intake", "qc", "storage", "distributed"):
+    for stage in ("intake", "qc", "storage", "distributed", "closed"):
         dims = stage_health(stage, assessment)
         scores = [d["average"] for d in dims]
         if scores:
