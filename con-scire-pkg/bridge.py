@@ -79,6 +79,7 @@ STAGE_TO_POSITIONS = {
     "matched":     [6, 5],
     "scheduled":   [5, 3],
     "distributed": [6, 7],
+    "closed":      [0, 9],
 }
 
 STAGE_LABELS = {
@@ -88,6 +89,7 @@ STAGE_LABELS = {
     "matched":     "MATCHED",
     "scheduled":   "SCHEDULED",
     "distributed": "DISTRIBUTED",
+    "closed":      "CLOSED",
 }
 
 # Service Loop — 9 operational steps, each governed by one AXIOM position.

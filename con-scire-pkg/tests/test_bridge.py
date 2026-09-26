@@ -356,9 +356,12 @@ class TestBridgeOrg(unittest.TestCase):
 
 
 class TestMappingCoverage(unittest.TestCase):
-    def test_all_four_stages_covered(self):
-        for s in ("intake", "qc", "storage", "distributed"):
+    def test_all_lifecycle_stages_covered(self):
+        for s in ("intake", "qc", "storage", "distributed", "closed"):
             self.assertIn(s, STAGE_TO_POSITIONS)
+
+    def test_closed_maps_to_cipher_and_born(self):
+        self.assertEqual(STAGE_TO_POSITIONS["closed"], [0, 9])
 
     def test_every_axiom_position_reachable(self):
         reachable = set()
