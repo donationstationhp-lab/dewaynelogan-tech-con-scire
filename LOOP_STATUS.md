@@ -50,6 +50,21 @@ Each iteration of `/loop access-dkl-loop` must:
 
 ---
 
+## 2026-09-27 (manual status update — loop dark since Sep 19)
+
+**Triggered by:** ad-hoc session (not a `/loop` iteration). Loop heartbeat expired — 8 days since last entry. `pytest` not available in this session so test suite could not run; last confirmed count was 542/542 on Sep 19. Trunk moved 2 commits since last entry (PRs #20–#21: Sep 16 AXIOM assessment + `items.json`). AXIOM Signal Report in Notion has a Sep 22 "conscience" word entry that was never logged here — that entry predates this update and is noted for continuity.
+
+| Item | Status |
+|------|--------|
+| Branch | `claude/etymonline-search-explore-qML2g` — up to date with remote |
+| Working tree | clean |
+| Test suite | **not run** — `pytest` unavailable in this session; last known: 542 / 542 (2026-09-19) |
+| Open issues | 0 |
+| Open PRs | 0 |
+| Loop outcome | Manual log entry only — loop needs re-arming via `/loop access-dkl-loop` |
+
+---
+
 ## 2026-09-19 (loop restarted)
 
 **Triggered by:** user request to restart the loop after an earlier manual stop. Trunk moved 4 commits since the last entry (PRs #18–#19: `CONVERSATION_SUMMARY_PROMPT.md` and its `CONTEXT_FOR_CLAUDE.md` section) — test count unchanged, but worth logging since the tree isn't identical to the last recorded state.
