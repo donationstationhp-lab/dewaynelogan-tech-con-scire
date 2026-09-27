@@ -20,6 +20,21 @@ Each iteration of `/loop access-dkl-loop` must:
 
 ---
 
+## 2026-09-27 (loop re-armed — first automated iteration)
+
+**Triggered by:** `/loop access-dkl-loop` — loop re-armed after 3-day gap.
+
+| Item | Status |
+|------|--------|
+| Branch | `claude/etymonline-search-explore-qML2g` — up to date with remote |
+| Working tree | clean |
+| Test suite | **542 / 542 passed** (`test_mcp_server.py` skipped — `mcp` module not available in this environment; non-mcp suite complete) |
+| Open issues | 0 |
+| Open PRs | 0 |
+| Loop outcome | All green — loop re-armed, 30 min heartbeat |
+
+---
+
 ## 2026-09-27 (manual status update — loop dark since Sep 24)
 
 **Triggered by:** ad-hoc session (not a `/loop` iteration). Loop heartbeat expired — 3 days since last automated run (Sep 24 run #2). `pytest` not available in this session so test suite could not run; last confirmed count was 542/542 on Sep 24. AXIOM Signal Report in Notion has a Sep 22 "conscience" word entry that predates the Sep 24 runs and was never logged in this file — noted for continuity.
