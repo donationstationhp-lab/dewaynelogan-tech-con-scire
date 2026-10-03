@@ -27,6 +27,31 @@ TOOLS = [
         "input_schema": {"type": "object", "properties": {}},
     },
     {
+        "name": "axiom_get_dimension",
+        "description": (
+            "Look up a single AXIOM cognitive function (Decinary dimension) "
+            "by position number (0–9) or name — e.g. 'knowledge', "
+            "'consciousness', 'build/destroy'. Returns the dimension's "
+            "name, theme, and three 1–10 diagnostic questions."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "position_or_name": {
+                    "description": (
+                        "Position number 0–9, or a name such as 'knowledge', "
+                        "'equality', 'build/destroy', 'born'."
+                    ),
+                    "oneOf": [
+                        {"type": "integer", "minimum": 0, "maximum": 9},
+                        {"type": "string", "minLength": 1},
+                    ],
+                },
+            },
+            "required": ["position_or_name"],
+        },
+    },
+    {
         "name": "axiom_score_assessment",
         "description": (
             "Score an AXIOM assessment for an organization from "
@@ -96,6 +121,19 @@ def _axiom_get_dimensions(tool_input):
     return {"dimensions": ax.DIMENSIONS}
 
 
+def _axiom_get_dimension(tool_input):
+    q = tool_input.get("position_or_name")
+    if q is None:
+        raise ToolError("`position_or_name` is required.")
+    dim = ax.lookup_dimension(q)
+    if dim is None:
+        raise ToolError(
+            f"No dimension found for {q!r}. "
+            f"Use a position 0–9 or a name like 'knowledge', 'equality', 'build/destroy'."
+        )
+    return dim
+
+
 def _axiom_score_assessment(tool_input):
     org = (tool_input.get("organization") or "").strip()
     if not org:
@@ -146,6 +184,7 @@ def _axiom_score_assessment(tool_input):
 
 _HANDLERS = {
     "axiom_get_dimensions": _axiom_get_dimensions,
+    "axiom_get_dimension": _axiom_get_dimension,
     "axiom_score_assessment": _axiom_score_assessment,
 }
 

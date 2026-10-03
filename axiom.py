@@ -184,6 +184,31 @@ def find_top_gap(results: list) -> dict:
     return min(results, key=lambda r: r["average"])
 
 
+def lookup_dimension(query) -> dict | None:
+    """Look up a dimension by position number (0–9) or name (case-insensitive)."""
+    if isinstance(query, int) or (isinstance(query, str) and query.strip().isdigit()):
+        pos = int(query)
+        return next((d for d in DIMENSIONS if d["position"] == pos), None)
+    norm = query.lower().replace("/", " ").replace("-", " ").strip()
+    for d in DIMENSIONS:
+        dim_norm = d["name"].lower().replace("/", " ").replace("-", " ")
+        if norm == dim_norm or dim_norm.startswith(norm) or norm in dim_norm:
+            return d
+    return None
+
+
+def print_dimension(dim: dict) -> None:
+    """Print a single dimension's name, theme, and diagnostic questions."""
+    sep = "─" * 62
+    print(f"\n{sep}")
+    print(f"  Position {dim['position']}: {dim['name']}")
+    print(f"  Theme: {dim['theme']}")
+    print(sep)
+    for i, q in enumerate(dim["questions"], 1):
+        print(f"\n  [{i}] {q}")
+    print()
+
+
 def scores_are_uniform(results: list) -> bool:
     """Return True if all dimension averages are equal."""
     averages = [r["average"] for r in results]
@@ -724,9 +749,26 @@ def main() -> None:
             "or specify individual JSON files"
         ),
     )
+    parser.add_argument(
+        "--function",
+        metavar="NAME_OR_POS",
+        help=(
+            "Look up a single cognitive function by position number (0-9) "
+            "or name, e.g. 'knowledge', 'equality', 'build/destroy'"
+        ),
+    )
     args = parser.parse_args()
 
-    if args.compare:
+    if args.function:
+        dim = lookup_dimension(args.function)
+        if dim is None:
+            print(
+                f"No dimension found for {args.function!r}. "
+                f"Use a position 0-9 or a name like 'knowledge', 'equality', 'build/destroy'."
+            )
+            sys.exit(1)
+        print_dimension(dim)
+    elif args.compare:
         run_comparison(args.compare[0], args.compare[1])
     elif args.ecosystem is not None:
         run_ecosystem(files=args.ecosystem if args.ecosystem else None)
