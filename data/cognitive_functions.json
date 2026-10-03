@@ -1,0 +1,58 @@
+{
+  "process": [
+    {"id":  1, "name": "Focusing and Concentrating"},
+    {"id":  2, "name": "Labeling"},
+    {"id":  3, "name": "Comparing"},
+    {"id":  4, "name": "Visualization"},
+    {"id":  5, "name": "Analyzing"},
+    {"id":  6, "name": "Forming Relationships"},
+    {"id":  7, "name": "Providing Logical Evidence"},
+    {"id":  8, "name": "Similarity"},
+    {"id":  9, "name": "Congruency"},
+    {"id": 10, "name": "Inductive Thinking"},
+    {"id": 11, "name": "Conserving Consistency"},
+    {"id": 12, "name": "Principles (Prioritizing)"},
+    {"id": 13, "name": "Forming Proportional Quantitative Relationships"},
+    {"id": 14, "name": "Integrating"},
+    {"id": 15, "name": "Encoding"},
+    {"id": 16, "name": "Forming Functional Relationship Between Variables"},
+    {"id": 17, "name": "Working Systematically"},
+    {"id": 18, "name": "Selecting Relevant Cues"}
+  ],
+  "values": [
+    {"id": 1, "name": "INTEGRITY"},
+    {"id": 2, "name": "DIGNITY"},
+    {"id": 3, "name": "DISCERNMENT"},
+    {"id": 4, "name": "THE STRUGGLE", "note": "With Safeguards"},
+    {"id": 5, "name": "GOOD ANCESTORSHIP"}
+  ],
+  "stages": {
+    "category": "Build Self-Determination",
+    "items": [
+      {"number":  1, "name": "Neophyte",             "etymology": "neo-phytos",                     "root": "newly planted",          "description": "Requires patient teaching"},
+      {"number":  2, "name": "Earthing",             "etymology": "eorþe",                          "root": "ground",                 "description": "Establishing foundation"},
+      {"number":  3, "name": "Object",               "etymology": "ob-jacere",                      "root": "thrown before",          "description": "That which is examined"},
+      {"number":  4, "name": "Spectrum",             "etymology": "specere",                        "root": "to observe",             "description": "Full range"},
+      {"number":  5, "name": "Spatial Orientation",  "etymology": "spatium + oriri",                "root": "space + to rise",        "description": "Knowing position"},
+      {"number":  6, "name": "Principle",            "etymology": "principium",                     "root": "first",                  "description": "Foundation"},
+      {"number":  7, "name": "Commonality",          "etymology": "com-munis",                      "root": "shared",                 "description": "What connects"},
+      {"number":  8, "name": "Whole",                "etymology": "hal",                            "root": "complete",               "description": "All parts integrated"},
+      {"number":  9, "name": "Situation",            "etymology": "situs",                          "root": "place",                  "description": "Specific context"},
+      {"number": 10, "name": "Core",                 "etymology": "cor",                            "root": "heart",                  "description": "Essential center"},
+      {"number": 11, "name": "Code",                 "etymology": "codex",                          "root": "system",                 "description": "Encoding method"},
+      {"number": 12, "name": "Congruent",            "etymology": "con-gruere",                     "root": "agree together",         "description": "Perfect fit"},
+      {"number": 13, "name": "Proximity",            "etymology": "proximus",                       "root": "nearest",                "description": "Degree of nearness"},
+      {"number": 14, "name": "Coefficient",          "etymology": "co-efficiens",                   "root": "working together",       "description": "Joint accomplishment"},
+      {"number": 15, "name": "Intercept",            "etymology": "inter-capere",                   "root": "seize between",          "description": "Where paths cross"},
+      {"number": 16, "name": "Anoint",               "etymology": "in-unguere",                     "root": "smear with oil",         "description": "Mark as chosen for sacred purpose"}
+    ]
+  },
+  "domains": [
+    {"id": 1, "name": "Quantity"},
+    {"id": 2, "name": "Relationships"},
+    {"id": 3, "name": "Representation"},
+    {"id": 4, "name": "Abstraction/Generalization"},
+    {"id": 5, "name": "Logic/Proof"},
+    {"id": 6, "name": "Precision"}
+  ]
+}
