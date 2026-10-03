@@ -29,7 +29,8 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime
+import datetime
+from datetime import datetime as _datetime_cls
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -40,6 +41,8 @@ from power_connection import (
 )
 from donation_station import _load as ds_load, STAGE_LABELS
 from axiom import DIMENSIONS, get_category
+from suprememath import Lexicon, compute_daily, DEFAULT_LEXICON_PATH
+from suprememath.digits import day_of_year as _day_of_year
 
 # ── Mapping tables ────────────────────────────────────────────────────────────
 
@@ -100,7 +103,7 @@ def item_born_number(item: dict) -> int | None:
         return None
     ts = intake_event.get("timestamp", "")
     try:
-        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+        dt = _datetime_cls.fromisoformat(ts.replace("Z", "+00:00"))
         result = pc_calculate(dt.month, dt.day, dt.year)
         return result["born"]
     except (ValueError, KeyError):
@@ -275,6 +278,117 @@ def print_station_bridge(items: list, assessment: dict, org_name: str) -> None:
     print()
 
 
+# ── When windows ─────────────────────────────────────────────────────────────
+
+
+def _stage_for_date(d):
+    doy = _day_of_year(d)
+    return ((doy - 1) % 16) + 1
+
+
+# SM purpose names (1-9) for display
+_PURPOSE_NAMES = {
+    1: "Knowledge", 2: "Wisdom", 3: "Understanding",
+    4: "Cultured Freedom", 5: "Powered Refinement", 6: "Equality",
+    7: "Consciousness", 8: "Build/Destroy", 9: "Birth",
+}
+
+
+def when_windows(stage, start_date, n_days=30, lexicon=None):
+    """
+    Scan forward n_days from start_date and return days where the SM purpose
+    position governs one of the AXIOM dimensions that run that lifecycle stage.
+
+    Returns list of dicts: date, purpose_pos, purpose_name, governing_position,
+    stage_num, moon_emoji, moon_phase.
+    """
+    if lexicon is None:
+        lexicon = Lexicon(DEFAULT_LEXICON_PATH)
+
+    positions = STAGE_TO_POSITIONS.get(stage, [])
+    if not positions:
+        return []
+
+    results = []
+    for i in range(n_days):
+        d   = start_date + datetime.timedelta(days=i)
+        dt  = datetime.datetime(d.year, d.month, d.day, 12, 0)
+        sm  = compute_daily(dt, lexicon)
+        pos = sm["purpose"]["number"]
+
+        if pos in positions:
+            results.append({
+                "date":               str(d),
+                "purpose_pos":        pos,
+                "purpose_name":       sm["purpose"]["name"],
+                "governing_position": pos,
+                "stage_num":          _stage_for_date(d),
+                "aligned":            sm["secondary"]["convergence"]["aligned"],
+                "convergence":        sm["secondary"]["convergence"]["number"],
+                "moon_emoji":         sm["moon"]["emoji"],
+                "moon_phase":         sm["moon"]["phase"],
+            })
+    return results
+
+
+def when_all_stages(start_date, n_days=30, lexicon=None):
+    """Return a mapping stage → list of window dicts for all four stages."""
+    if lexicon is None:
+        lexicon = Lexicon(DEFAULT_LEXICON_PATH)
+    return {
+        stage: when_windows(stage, start_date, n_days, lexicon)
+        for stage in ("intake", "qc", "storage", "distributed")
+    }
+
+
+def print_when_windows(stage, windows, assessment, org_name):
+    label = STAGE_LABELS.get(stage, stage.upper())
+    positions = STAGE_TO_POSITIONS.get(stage, [])
+    pos_str   = " + ".join(f"P{p}" for p in positions)
+
+    print(f"\n{BAR}")
+    print(f"  WHEN  ·  {label}  ({pos_str})  —  {org_name}")
+    print(BAR)
+
+    if not windows:
+        print(f"  No windows in this range.\n")
+        return
+
+    for w in windows:
+        aligned_mark = "  ✦" if w["aligned"] else ""
+        dim = get_dimension_score(w["governing_position"], assessment) if assessment else None
+        score_str = ""
+        if dim:
+            sig = _signal(dim["average"])
+            score_str = f"  [{dim['average']:.2f} {dim['level']} · {sig}]"
+
+        print(f"  {w['date']}  {w['moon_emoji']}  "
+              f"P{w['purpose_pos']} {w['purpose_name']:<22}"
+              f"{score_str}{aligned_mark}")
+    print()
+
+
+def print_when_all(all_windows, assessment, org_name):
+    n_days_str = ""
+    print(f"\n{DBAR}")
+    print(f"  WHEN WINDOWS  —  {org_name}")
+    print(DBAR)
+
+    for stage in ("intake", "qc", "storage", "distributed"):
+        label     = STAGE_LABELS.get(stage, stage.upper())
+        positions = STAGE_TO_POSITIONS.get(stage, [])
+        pos_str   = " + ".join(f"P{p}" for p in positions)
+        windows   = all_windows.get(stage, [])
+        print(f"\n  {label}  ({pos_str})  —  {len(windows)} window(s)")
+        for w in windows:
+            aligned_mark = "  ✦" if w["aligned"] else ""
+            dim = get_dimension_score(w["governing_position"], assessment) if assessment else None
+            score_str = f"  [{dim['average']:.2f} {dim['level']}]" if dim else ""
+            print(f"    {w['date']}  {w['moon_emoji']}  "
+                  f"P{w['purpose_pos']} {w['purpose_name']}{score_str}{aligned_mark}")
+    print()
+
+
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 
@@ -288,6 +402,9 @@ def main() -> None:
             "  python bridge.py --station\n"
             "  python bridge.py --item DS-0001\n"
             "  python bridge.py --stage distributed\n"
+            "  python bridge.py --when intake\n"
+            "  python bridge.py --when\n"
+            "  python bridge.py --when qc --days 60\n"
             "  python bridge.py --org assessments/Donation_Station_HP_20260811_224113.json"
         ),
     )
@@ -312,6 +429,21 @@ def main() -> None:
         choices=["intake", "qc", "storage", "distributed"],
         help="Show AXIOM dimensions governing a lifecycle stage",
     )
+    parser.add_argument(
+        "--when",
+        metavar="STAGE",
+        nargs="?",
+        const="all",
+        choices=["intake", "qc", "storage", "distributed", "all"],
+        help="Find upcoming days when SM purpose position governs a stage's AXIOM dimensions",
+    )
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        metavar="N",
+        help="Days to scan with --when (default: 30)",
+    )
     args = parser.parse_args()
 
     if args.org:
@@ -326,7 +458,16 @@ def main() -> None:
     db = ds_load()
     items = list(db["items"].values())
 
-    if args.station:
+    if args.when:
+        lexicon    = Lexicon(DEFAULT_LEXICON_PATH)
+        start_date = datetime.date.today()
+        if args.when == "all":
+            all_w = when_all_stages(start_date, args.days, lexicon)
+            print_when_all(all_w, assessment, org_name)
+        else:
+            windows = when_windows(args.when, start_date, args.days, lexicon)
+            print_when_windows(args.when, windows, assessment, org_name)
+    elif args.station:
         print_station_bridge(items, assessment, org_name)
     elif args.item:
         item = db["items"].get(args.item)
