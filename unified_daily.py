@@ -30,6 +30,7 @@ from suprememath.digits import day_of_year
 import cognitive_functions as cf
 import axiom as ax
 import bridge as br
+import daily_log as dl
 
 
 def _load_bridge():
@@ -233,7 +234,9 @@ def main():
     parser.add_argument("--date", metavar="YYYY-MM-DD", help="Date to read (default: today)")
     parser.add_argument("--hour", type=int, metavar="0-23", help="Hour 0-23 (default: now)")
     parser.add_argument("--org",  metavar="FILE", help="AXIOM assessment JSON file")
-    parser.add_argument("--json", action="store_true", help="Output raw JSON")
+    parser.add_argument("--json",    action="store_true", help="Output raw JSON")
+    parser.add_argument("--log",     action="store_true", help="Append this reading to the daily log")
+    parser.add_argument("--reflect", metavar="TEXT",      help="Add a one-line reflection (implies --log)")
     args = parser.parse_args()
 
     now = datetime.datetime.now()
@@ -260,6 +263,14 @@ def main():
         print(json.dumps(reading, indent=2, default=str))
     else:
         print_unified(reading)
+
+    if args.log or args.reflect:
+        entry, is_new = dl.append_entry(reading, reflection=args.reflect)
+        status = "logged" if is_new else "updated"
+        aligned = "  ✦ aligned" if entry["aligned"] else ""
+        print(f"  → {status} {entry['date']}  ·  "
+              f"Purpose {entry['purpose_pos']} — {entry['purpose']}"
+              f"  ·  Stage {entry['stage_num']}{aligned}\n")
 
 
 if __name__ == "__main__":
