@@ -207,6 +207,118 @@ def print_triples(days, year):
     print(f"\n{DSEP}\n")
 
 
+def write_annual_export(days, year, log_entries=None, path=None):
+    """
+    Write a human-readable annual summary document — the year-end heirloom record.
+    Incorporates any reflections from the daily log for that year.
+    """
+    from collections import Counter as _Counter
+
+    total        = len(days)
+    aligned_days = [d for d in days if d["aligned"]]
+    triple_days  = [d for d in days if d["purpose_pos"] == d["stage_num"]]
+    both_days    = [d for d in days if d["aligned"] and d["purpose_pos"] == d["stage_num"]]
+
+    purpose_counts = _Counter(f"P{d['purpose_pos']} {d['purpose_name']}" for d in days)
+    value_counts   = _Counter(d["value"]  for d in days if d["value"])
+    domain_counts  = _Counter(d["domain"] for d in days if d["domain"])
+
+    year_log = []
+    if log_entries:
+        year_str = str(year)
+        year_log = [e for e in log_entries if e.get("date", "").startswith(year_str)]
+
+    generated = datetime.date.today().isoformat()
+    W = 70
+    BAR = "═" * W
+    SEP = "─" * W
+
+    lines = []
+    lines += [
+        BAR,
+        f"  CON-SCIRE ANNUAL SUMMARY",
+        f"  {year}",
+        BAR,
+        f"",
+        f"  Generated:   {generated}",
+        f"  Days:        {total}",
+        f"  Aligned (✦): {len(aligned_days)}  ({len(aligned_days)/total*100:.1f}%)",
+        f"  Triple  (◈): {len(triple_days)}  ({len(triple_days)/total*100:.1f}%)",
+        f"  Both   (✦◈): {len(both_days)}  (rarest convergence)",
+        f"",
+    ]
+
+    # Aligned days
+    lines += [SEP, f"  ✦ ALIGNED DAYS  ({len(aligned_days)} total)", SEP]
+    for d in aligned_days:
+        tm = "  ◈" if d["purpose_pos"] == d["stage_num"] else ""
+        lines.append(f"  {d['date']}  {d['moon_emoji']}  "
+                     f"P{d['purpose_pos']} {d['purpose_name']:<22}"
+                     f"  Stage {d['stage_num']:>2} {d['stage_name']}{tm}")
+    lines.append("")
+
+    # Triple alignments
+    lines += [SEP, f"  ◈ TRIPLE ALIGNMENTS  ({len(triple_days)} total  ·  purpose = stage)", SEP]
+    for d in triple_days:
+        am = "  ✦" if d["aligned"] else ""
+        lines.append(f"  {d['date']}  {d['moon_emoji']}  "
+                     f"P{d['purpose_pos']} {d['purpose_name']:<22}"
+                     f"  Stage {d['stage_num']:>2} {d['stage_name']}{am}")
+    lines.append("")
+
+    # Purpose distribution
+    lines += [SEP, f"  PURPOSE DISTRIBUTION", SEP]
+    for label, count in sorted(purpose_counts.items()):
+        bar = "█" * (count // 2)
+        lines.append(f"  {label:<30}  {count:>3}  {bar}")
+    lines.append("")
+
+    # Values and domains
+    lines += [SEP, f"  VALUES GOVERNING", SEP]
+    for label, count in value_counts.most_common():
+        lines.append(f"  {label:<30}  {count:>3}")
+    lines.append("")
+
+    lines += [SEP, f"  DOMAINS IN FRAME", SEP]
+    for label, count in domain_counts.most_common():
+        lines.append(f"  {label:<30}  {count:>3}")
+    lines.append("")
+
+    # Stage cycle completions
+    completions = [d["date"] for d in days if d["stage_num"] == 16]
+    lines += [SEP, f"  STAGE CYCLE COMPLETIONS  ({len(completions)} full passes)", SEP]
+    for dt_str in completions:
+        lines.append(f"  {dt_str}")
+    lines.append("")
+
+    # Reflections from this year
+    if year_log:
+        reflected = [e for e in year_log if e.get("reflection")]
+        lines += [SEP, f"  REFLECTIONS  ({len(reflected)} recorded  ·  {len(year_log)} entries)", SEP]
+        for e in sorted(reflected, key=lambda x: x["date"]):
+            aligned_mark = "  ✦" if e.get("aligned") else ""
+            lines.append(f"")
+            lines.append(f"  {e['date']}  P{e['purpose_pos']} {e.get('purpose',''):<22}"
+                         f"  Stage {e['stage_num']:>2} {e.get('stage_name', '')}{aligned_mark}")
+            lines.append(f"  Domain: {e.get('domain','—')}  ·  Value: {e.get('value','—')}")
+            lines.append(f"    \"{e['reflection']}\"")
+        if not reflected:
+            lines.append(f"  None recorded for {year}.")
+        lines.append("")
+
+    lines += [BAR, f"  End of {year} — Con-Scire Annual Record", BAR, ""]
+
+    content = "\n".join(lines)
+
+    if path:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+    else:
+        print(content)
+
+    return content
+
+
 def print_month(days, month, year):
     month_days = [d for d in days if d["month"] == month]
     label = MONTHS[month]
@@ -236,7 +348,8 @@ def main():
             "  python gen_year.py --year 2027 --triples\n"
             "  python gen_year.py --year 2027 --month 3\n"
             "  python gen_year.py --year 2027 --json\n"
-            "  python gen_year.py --year 2027 --out year_2027.json"
+            "  python gen_year.py --year 2027 --out year_2027.json\n"
+            "  python gen_year.py --year 2026 --export annual_2026.txt"
         ),
     )
     parser.add_argument("--year",    type=int, metavar="YYYY",  help="Year to generate (default: current year)")
@@ -245,6 +358,8 @@ def main():
     parser.add_argument("--month",   type=int, metavar="1-12",  help="Show one month in detail")
     parser.add_argument("--json",    action="store_true",       help="Output full data as JSON to stdout")
     parser.add_argument("--out",     metavar="FILE",            help="Write full data JSON to file")
+    parser.add_argument("--export",  metavar="FILE",            help="Write human-readable annual summary document")
+    parser.add_argument("--log",     metavar="FILE",            help="Daily log JSON to include reflections in export")
     args = parser.parse_args()
 
     year = args.year or datetime.date.today().year
@@ -266,6 +381,14 @@ def main():
 
     if args.json:
         print(json.dumps(days, indent=2))
+        return
+
+    if args.export:
+        import daily_log as dl
+        log_path    = args.log or dl.DEFAULT_LOG
+        log_entries = dl.load_log(log_path)
+        write_annual_export(days, year, log_entries=log_entries, path=args.export)
+        print(f"  Annual export written → {args.export}", file=sys.stderr)
         return
 
     if args.aligned:

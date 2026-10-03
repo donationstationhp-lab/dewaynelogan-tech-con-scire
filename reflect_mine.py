@@ -393,6 +393,104 @@ def print_show(entries):
     print()
 
 
+def write_log_export(entries, path=None):
+    """
+    Write a human-readable narrative archive of the full daily log —
+    the living record of how attention, intelligence, and energy were invested.
+    Every entry is included; reflections are given prominence.
+    """
+    se       = scored_entries(entries)
+    has_r    = [e for e in se if e["has_reflection"]]
+    W        = 70
+    BAR      = "═" * W
+    SEP      = "─" * W
+    generated = __import__("datetime").date.today().isoformat()
+
+    lines = []
+    lines += [
+        BAR,
+        f"  CON-SCIRE DAILY LOG — NARRATIVE ARCHIVE",
+        BAR,
+        f"",
+        f"  Generated:    {generated}",
+        f"  Total entries: {len(se)}",
+        f"  Reflections:   {len(has_r)}",
+        f"",
+        f'  "Each entry is a dated artifact of how intelligence, energy,',
+        f'   and attention were invested on that day."',
+        f"",
+        BAR,
+        f"",
+    ]
+
+    # Full chronological record
+    for e in sorted(se, key=lambda x: x["date"]):
+        aligned_mark = "  ✦ ALIGNED" if e.get("aligned") else ""
+        triple_mark  = "  ◈ TRIPLE"  if e.get("purpose_pos") == e.get("stage_num") else ""
+        lines.append(f"  {e['date']}  {e.get('moon_emoji','')}  "
+                     f"P{e['purpose_pos']} {e.get('purpose',''):<22}"
+                     f"  Stage {e.get('stage_num',''):>2}{aligned_mark}{triple_mark}")
+        lines.append(f"  Domain: {e.get('domain','—'):<28}  Value: {e.get('value','—')}")
+        if e["has_reflection"]:
+            stars = _star(e["reflection_score"])
+            lines.append(f"  {stars}  [{e['reflection_score']:.1f}]  \"{e['reflection']}\"")
+        lines.append(f"  {SEP}")
+        lines.append("")
+
+    # Pattern summary
+    by_purpose = mine_by_dimension(se, "purpose_pos", "purpose")
+    by_stage   = mine_by_dimension(se, "stage_num",   "stage")
+    by_value   = mine_by_dimension(se, "value",       "value")
+
+    lines += [BAR, f"  PATTERNS  ·  {confidence_label(len(has_r)).upper()} DATA", BAR, ""]
+
+    lines.append(f"  Purpose positions by reflection richness:")
+    for g in by_purpose:
+        if g["reflected"] == 0:
+            continue
+        pname = next((e.get("purpose","") for e in se if e.get("purpose_pos") == g["key"]), "")
+        lines.append(f"    P{g['key']} {pname:<22}  {g['reflected']}/{g['total']}  "
+                     f"avg {g['avg_score']:.1f}  [{g['confidence']}]")
+    lines.append("")
+
+    lines.append(f"  Stages by reflection richness:")
+    for g in by_stage:
+        if g["reflected"] == 0:
+            continue
+        sname = next((e.get("stage_name","") for e in se if e.get("stage_num") == g["key"]), "")
+        lines.append(f"    Stage {g['key']:>2} {sname:<20}  {g['reflected']}/{g['total']}  "
+                     f"avg {g['avg_score']:.1f}  [{g['confidence']}]")
+    lines.append("")
+
+    lines.append(f"  Values when reflections were written:")
+    for g in by_value:
+        if g["reflected"] == 0:
+            continue
+        lines.append(f"    {str(g['key']):<30}  {g['reflected']}/{g['total']}  "
+                     f"avg {g['avg_score']:.1f}  [{g['confidence']}]")
+    lines.append("")
+
+    # Readiness
+    lines += [SEP, "  DATA READINESS", SEP]
+    for label, threshold in CONFIDENCE_THRESHOLDS.items():
+        need = max(0, threshold - len(has_r))
+        note = f"← {need} more" if need > 0 else "✓ reached"
+        lines.append(f"  {label:<14}  {len(has_r):>3}/{threshold:<4}  {note}")
+    lines.append("")
+
+    lines += [BAR, f"  End of archive — {generated}", BAR, ""]
+
+    content = "\n".join(lines)
+
+    if path:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+    else:
+        print(content)
+
+    return content
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="Reflection Miner — pattern analysis of daily log reflections",
@@ -406,20 +504,25 @@ def main():
             "  python reflect_mine.py --by domain\n"
             "  python reflect_mine.py --score\n"
             "  python reflect_mine.py --show\n"
+            "  python reflect_mine.py --export log_archive.txt\n"
             "  python reflect_mine.py --log /path/to/log.json"
         ),
     )
-    parser.add_argument("--by",    metavar="DIMENSION",
+    parser.add_argument("--by",     metavar="DIMENSION",
                         choices=["purpose", "stage", "value", "domain"],
                         help="Group reflections by purpose, stage, value, or domain")
-    parser.add_argument("--score", action="store_true", help="Rank all reflections by richness score")
-    parser.add_argument("--show",  action="store_true", help="List all entries that have reflections")
-    parser.add_argument("--log",   metavar="FILE",      help=f"Alternate log file (default: {DEFAULT_LOG})")
+    parser.add_argument("--score",  action="store_true", help="Rank all reflections by richness score")
+    parser.add_argument("--show",   action="store_true", help="List all entries that have reflections")
+    parser.add_argument("--export", metavar="FILE",      help="Write narrative archive to file")
+    parser.add_argument("--log",    metavar="FILE",      help=f"Alternate log file (default: {DEFAULT_LOG})")
     args = parser.parse_args()
 
     entries = load_log(args.log)
 
-    if args.by:
+    if args.export:
+        write_log_export(entries, path=args.export)
+        print(f"  Archive written → {args.export}")
+    elif args.by:
         print_by_dimension(entries, args.by)
     elif args.score:
         print_scored(entries)
